@@ -573,6 +573,394 @@ export class WorkspaceService {
       .replace(/(^-|-$)/g, '');
   }
 
+  async remove(id: string, userId: string): Promise<void> {
+    const workspace = await this.workspaceRepository.findOne({
+      where: { id },
+    });
+
+    if (!workspace) {
+      throw new NotFoundException('Workspace not found');
+    }
+
+    // Check permissions (only owner and admins can delete)
+    await this.checkPermissions(id, userId, [WorkspaceRole.ADMIN]);
+
+    // Soft delete
+    await this.workspaceRepository.update(id, {
+      isActive: false,
+      isArchived: true,
+    });
+
+    this.logger.log(`Workspace deleted: ${workspace.name} by user ${userId}`);
+  }
+
+  async updateMemberRole(
+    workspaceId: string,
+    memberId: string,
+    updateMemberRoleDto: UpdateMemberRoleDto,
+    userId: string,
+  ): Promise<WorkspaceMemberResponseDto> {
+    await this.checkPermissions(workspaceId, userId, [WorkspaceRole.ADMIN]);
+
+    const member = await this.workspaceMemberRepository.findOne({
+      where: { id: memberId, workspaceId },
+      relations: ['user'],
+    });
+
+    if (!member) {
+      throw new NotFoundException('Member not found');
+    }
+
+    member.role = updateMemberRoleDto.role;
+    const updatedMember = await this.workspaceMemberRepository.save(member);
+
+    this.logger.log(
+      `Member role updated: ${member.user.email} to ${updateMemberRoleDto.role}`,
+    );
+
+    return this.mapMemberToResponseDto(updatedMember);
+  }
+
+  async removeMember(
+    workspaceId: string,
+    memberId: string,
+    userId: string,
+  ): Promise<void> {
+    await this.checkPermissions(workspaceId, userId, [WorkspaceRole.ADMIN]);
+
+    const member = await this.workspaceMemberRepository.findOne({
+      where: { id: memberId, workspaceId },
+      relations: ['user'],
+    });
+
+    if (!member) {
+      throw new NotFoundException('Member not found');
+    }
+
+    // Cannot remove workspace owner
+    const workspace = await this.workspaceRepository.findOne({
+      where: { id: workspaceId },
+    });
+
+    if (workspace && workspace.ownerId === member.userId) {
+      throw new ForbiddenException('Cannot remove workspace owner');
+    }
+
+    member.isActive = false;
+    await this.workspaceMemberRepository.save(member);
+
+    this.logger.log(
+      `Member removed: ${member.user.email} from workspace ${workspaceId}`,
+    );
+  }
+
+  async getInvitations(
+    workspaceId: string,
+    userId: string,
+  ): Promise<WorkspaceInvitationResponseDto[]> {
+    await this.checkPermissions(workspaceId, userId, [WorkspaceRole.ADMIN]);
+
+    const invitations = await this.workspaceInvitationRepository.find({
+      where: { workspaceId, isAccepted: false },
+      relations: ['inviter', 'workspace'],
+      order: { createdAt: 'DESC' },
+    });
+
+    return invitations.map((invitation) =>
+      this.mapInvitationToResponseDto(invitation),
+    );
+  }
+
+  async cancelInvitation(
+    workspaceId: string,
+    invitationId: string,
+    userId: string,
+  ): Promise<void> {
+    await this.checkPermissions(workspaceId, userId, [WorkspaceRole.ADMIN]);
+
+    const invitation = await this.workspaceInvitationRepository.findOne({
+      where: { id: invitationId, workspaceId },
+    });
+
+    if (!invitation) {
+      throw new NotFoundException('Invitation not found');
+    }
+
+    await this.workspaceInvitationRepository.remove(invitation);
+
+    this.logger.log(
+      `Invitation cancelled: ${invitation.email} for workspace ${workspaceId}`,
+    );
+  }
+
+  async archive(
+    workspaceId: string,
+    userId: string,
+  ): Promise<{ message: string }> {
+    const workspace = await this.workspaceRepository.findOne({
+      where: { id: workspaceId },
+    });
+
+    if (!workspace) {
+      throw new NotFoundException('Workspace not found');
+    }
+
+    await this.checkPermissions(workspaceId, userId, [WorkspaceRole.ADMIN]);
+
+    await this.workspaceRepository.update(workspaceId, { isArchived: true });
+
+    this.logger.log(`Workspace archived: ${workspace.name} by user ${userId}`);
+
+    return { message: 'Workspace archived successfully' };
+  }
+
+  async restore(
+    workspaceId: string,
+    userId: string,
+  ): Promise<{ message: string }> {
+    const workspace = await this.workspaceRepository.findOne({
+      where: { id: workspaceId },
+    });
+
+    if (!workspace) {
+      throw new NotFoundException('Workspace not found');
+    }
+
+    await this.checkPermissions(workspaceId, userId, [WorkspaceRole.ADMIN]);
+
+    await this.workspaceRepository.update(workspaceId, { isArchived: false });
+
+    this.logger.log(`Workspace restored: ${workspace.name} by user ${userId}`);
+
+    return { message: 'Workspace restored successfully' };
+  }
+
+  async duplicate(
+    workspaceId: string,
+    duplicateDto: { name: string; includeMembers?: boolean },
+    userId: string,
+  ): Promise<WorkspaceResponseDto> {
+    const originalWorkspace = await this.workspaceRepository.findOne({
+      where: { id: workspaceId },
+      relations: ['organization'],
+    });
+
+    if (!originalWorkspace) {
+      throw new NotFoundException('Workspace not found');
+    }
+
+    await this.checkMembership(workspaceId, userId);
+
+    // Create new workspace
+    const newWorkspace = this.workspaceRepository.create({
+      name: duplicateDto.name,
+      slug: this.generateSlug(duplicateDto.name),
+      description: `Copy of ${originalWorkspace.name}`,
+      organizationId: originalWorkspace.organizationId,
+      ownerId: userId,
+      visibility: originalWorkspace.visibility,
+      settings: originalWorkspace.settings,
+    } as any);
+
+    const savedWorkspace = (await this.workspaceRepository.save(
+      newWorkspace,
+    )) as unknown as Workspace;
+
+    // Add creator as admin
+    const workspaceMember = this.workspaceMemberRepository.create({
+      workspaceId: savedWorkspace.id,
+      userId,
+      role: WorkspaceRole.ADMIN,
+      joinedAt: new Date(),
+    } as any);
+
+    await this.workspaceMemberRepository.save(workspaceMember);
+
+    // Copy members if requested
+    if (duplicateDto.includeMembers) {
+      const originalMembers = await this.workspaceMemberRepository.find({
+        where: { workspaceId, isActive: true },
+      });
+
+      for (const member of originalMembers) {
+        if (member.userId !== userId) {
+          // Skip creator as already added
+          const newMember = this.workspaceMemberRepository.create({
+            workspaceId: savedWorkspace.id,
+            userId: member.userId,
+            role: member.role,
+            joinedAt: new Date(),
+          } as any);
+
+          await this.workspaceMemberRepository.save(newMember);
+        }
+      }
+    }
+
+    this.logger.log(
+      `Workspace duplicated: ${originalWorkspace.name} -> ${duplicateDto.name}`,
+    );
+
+    return this.mapToResponseDto(savedWorkspace);
+  }
+
+  async getActivity(
+    workspaceId: string,
+    userId: string,
+    pagination: { page: number; limit: number },
+  ): Promise<{
+    activities: any[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    await this.checkMembership(workspaceId, userId);
+
+    // TODO: Implement activity tracking
+    // For now, return empty array
+    return {
+      activities: [],
+      total: 0,
+      page: pagination.page,
+      limit: pagination.limit,
+    };
+  }
+
+  async leave(
+    workspaceId: string,
+    userId: string,
+  ): Promise<{ message: string }> {
+    const workspace = await this.workspaceRepository.findOne({
+      where: { id: workspaceId },
+    });
+
+    if (!workspace) {
+      throw new NotFoundException('Workspace not found');
+    }
+
+    // Cannot leave if user is the owner
+    if (workspace.ownerId === userId) {
+      throw new ForbiddenException(
+        'Workspace owner cannot leave. Transfer ownership first.',
+      );
+    }
+
+    const member = await this.workspaceMemberRepository.findOne({
+      where: { workspaceId, userId, isActive: true },
+    });
+
+    if (!member) {
+      throw new NotFoundException('You are not a member of this workspace');
+    }
+
+    member.isActive = false;
+    await this.workspaceMemberRepository.save(member);
+
+    this.logger.log(`User ${userId} left workspace ${workspaceId}`);
+
+    return { message: 'Successfully left workspace' };
+  }
+
+  async getTemplates(workspaceId: string, userId: string): Promise<any[]> {
+    await this.checkMembership(workspaceId, userId);
+
+    // TODO: Implement workspace templates
+    // For now, return empty array
+    return [];
+  }
+
+  async createTemplate(
+    workspaceId: string,
+    templateDto: any,
+    userId: string,
+  ): Promise<any> {
+    await this.checkPermissions(workspaceId, userId, [WorkspaceRole.ADMIN]);
+
+    // TODO: Implement template creation
+    // For now, return the template data
+    return templateDto;
+  }
+
+  async findAll(
+    filter: WorkspaceFilterDto,
+  ): Promise<{ workspaces: WorkspaceResponseDto[]; total: number }> {
+    const {
+      search,
+      visibility,
+      organizationId,
+      sortBy,
+      sortOrder,
+      page,
+      limit,
+    } = filter;
+
+    const queryBuilder = this.workspaceRepository
+      .createQueryBuilder('workspace')
+      .leftJoin('workspace.organization', 'organization')
+      .leftJoin('workspace.owner', 'owner');
+
+    // Apply filters
+    if (search) {
+      queryBuilder.andWhere(
+        '(workspace.name ILIKE :search OR workspace.description ILIKE :search)',
+        { search: `%${search}%` },
+      );
+    }
+
+    if (visibility) {
+      queryBuilder.andWhere('workspace.visibility = :visibility', {
+        visibility,
+      });
+    }
+
+    if (organizationId) {
+      queryBuilder.andWhere('workspace.organizationId = :organizationId', {
+        organizationId,
+      });
+    }
+
+    // Apply sorting
+    const sortField = sortBy || 'createdAt';
+    const sortDirection = sortOrder || 'DESC';
+    queryBuilder.orderBy(`workspace.${sortField}`, sortDirection);
+
+    // Apply pagination
+    const skip = (page - 1) * limit;
+    queryBuilder.skip(skip).take(limit);
+
+    const [workspaces, total] = await queryBuilder.getManyAndCount();
+
+    return {
+      workspaces: workspaces.map((workspace) =>
+        this.mapToResponseDto(workspace),
+      ),
+      total,
+    };
+  }
+
+  async forceUpdate(
+    id: string,
+    updateWorkspaceDto: UpdateWorkspaceDto,
+  ): Promise<WorkspaceResponseDto> {
+    const workspace = await this.workspaceRepository.findOne({
+      where: { id },
+      relations: ['owner', 'organization'],
+    });
+
+    if (!workspace) {
+      throw new NotFoundException('Workspace not found');
+    }
+
+    Object.assign(workspace, updateWorkspaceDto);
+    const updatedWorkspace = await this.workspaceRepository.save(workspace);
+
+    this.logger.log(
+      `Workspace force updated: ${workspace.name} by SUPER_ADMIN`,
+    );
+
+    return this.mapToResponseDto(updatedWorkspace);
+  }
+
   private getDefaultSettings() {
     return {
       allowGuestAccess: false,

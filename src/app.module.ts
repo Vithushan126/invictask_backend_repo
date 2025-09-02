@@ -33,6 +33,7 @@ import { UserModule } from './modules/user/user.module';
 import { OrganizationModule } from './modules/organization/organization.module';
 import { FileUploadModule } from './modules/file-upload/file-upload.module';
 import { NotificationModule } from './modules/notification/notification.module';
+import { WorkspaceModule } from './modules/workspace/workspace.module';
 import { DatabaseModule } from './database/database.module';
 
 @Module({
@@ -83,6 +84,7 @@ import { DatabaseModule } from './database/database.module';
     AuthModule,
     UserModule,
     OrganizationModule,
+    WorkspaceModule,
     FileUploadModule,
     NotificationModule,
   ],
