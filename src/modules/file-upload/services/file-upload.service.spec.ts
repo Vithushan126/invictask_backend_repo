@@ -60,14 +60,16 @@ describe('FileUploadService', () => {
         height: 100,
       };
 
-      mockCloudinary.uploader.upload_stream.mockImplementation((options, callback) => {
-        const stream = {
-          end: jest.fn((buffer) => {
-            callback(null, mockResult);
-          }),
-        };
-        return stream;
-      });
+      mockCloudinary.uploader.upload_stream.mockImplementation(
+        (options, callback) => {
+          const stream = {
+            end: jest.fn((buffer) => {
+              callback(null, mockResult);
+            }),
+          };
+          return stream;
+        },
+      );
 
       const result = await service.uploadSingleFile(mockFile);
 
@@ -82,7 +84,9 @@ describe('FileUploadService', () => {
         mimetype: 'application/exe',
       };
 
-      await expect(service.uploadSingleFile(invalidFile)).rejects.toThrow(BadRequestException);
+      await expect(service.uploadSingleFile(invalidFile)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should throw BadRequestException for file size exceeding limit', async () => {
@@ -91,7 +95,9 @@ describe('FileUploadService', () => {
         size: 11 * 1024 * 1024, // 11MB
       };
 
-      await expect(service.uploadSingleFile(largeFile)).rejects.toThrow(BadRequestException);
+      await expect(service.uploadSingleFile(largeFile)).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 
@@ -106,7 +112,9 @@ describe('FileUploadService', () => {
     });
 
     it('should handle deletion failure', async () => {
-      mockCloudinary.uploader.destroy.mockResolvedValue({ result: 'not found' });
+      mockCloudinary.uploader.destroy.mockResolvedValue({
+        result: 'not found',
+      });
 
       const result = await service.deleteFile('non-existent-id');
 

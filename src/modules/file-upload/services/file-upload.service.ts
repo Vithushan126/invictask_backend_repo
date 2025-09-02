@@ -1,36 +1,56 @@
-import { Injectable, BadRequestException, InternalServerErrorException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { CloudinaryConfig } from '../config/cloudinary.config';
-import { 
-  FileUploadDto, 
-  FileUploadResponseDto, 
+import {
+  FileUploadDto,
+  FileUploadResponseDto,
   MultipleFileUploadResponseDto,
-  CloudinaryUploadResponseDto 
+  CloudinaryUploadResponseDto,
 } from '../dto/file-upload.dto';
 
 @Injectable()
 export class FileUploadService {
   constructor(private readonly cloudinaryConfig: CloudinaryConfig) {}
 
-  private readonly allowedImageTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
-  private readonly allowedVideoTypes = ['video/mp4', 'video/avi', 'video/mov', 'video/wmv', 'video/flv'];
-  private readonly allowedDocumentTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
-  
+  private readonly allowedImageTypes = [
+    'image/jpeg',
+    'image/jpg',
+    'image/png',
+    'image/gif',
+    'image/webp',
+  ];
+  private readonly allowedVideoTypes = [
+    'video/mp4',
+    'video/avi',
+    'video/mov',
+    'video/wmv',
+    'video/flv',
+  ];
+  private readonly allowedDocumentTypes = [
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  ];
+
   private readonly maxFileSize = 10 * 1024 * 1024; // 10MB
 
   async uploadSingleFile(
-    file: FileUploadDto, 
+    file: FileUploadDto,
     folder?: string,
-    transformation?: any
+    transformation?: any,
   ): Promise<FileUploadResponseDto> {
     try {
       // Validate file
       this.validateFile(file);
 
       const cloudinary = this.cloudinaryConfig.getCloudinary();
-      
+
       // Determine resource type
       const resourceType = this.getResourceType(file.mimetype);
-      
+
       // Upload options
       const uploadOptions: any = {
         resource_type: resourceType,
@@ -45,18 +65,19 @@ export class FileUploadService {
       }
 
       // Upload to Cloudinary
-      const result: CloudinaryUploadResponseDto = await new Promise((resolve, reject) => {
-        cloudinary.uploader.upload_stream(
-          uploadOptions,
-          (error, result) => {
-            if (error) {
-              reject(error);
-            } else {
-              resolve(result as CloudinaryUploadResponseDto);
-            }
-          }
-        ).end(file.buffer);
-      });
+      const result: CloudinaryUploadResponseDto = await new Promise(
+        (resolve, reject) => {
+          cloudinary.uploader
+            .upload_stream(uploadOptions, (error, result) => {
+              if (error) {
+                reject(error);
+              } else {
+                resolve(result as CloudinaryUploadResponseDto);
+              }
+            })
+            .end(file.buffer);
+        },
+      );
 
       return {
         success: true,
@@ -83,16 +104,20 @@ export class FileUploadService {
   }
 
   async uploadMultipleFiles(
-    files: FileUploadDto[], 
+    files: FileUploadDto[],
     folder?: string,
-    transformation?: any
+    transformation?: any,
   ): Promise<MultipleFileUploadResponseDto> {
     const uploaded: FileUploadResponseDto['data'][] = [];
     const failed: { filename: string; error: string }[] = [];
 
     for (const file of files) {
       try {
-        const result = await this.uploadSingleFile(file, folder, transformation);
+        const result = await this.uploadSingleFile(
+          file,
+          folder,
+          transformation,
+        );
         if (result.data) {
           uploaded.push(result.data);
         }
@@ -114,14 +139,19 @@ export class FileUploadService {
     };
   }
 
-  async deleteFile(publicId: string): Promise<{ success: boolean; message: string }> {
+  async deleteFile(
+    publicId: string,
+  ): Promise<{ success: boolean; message: string }> {
     try {
       const cloudinary = this.cloudinaryConfig.getCloudinary();
       const result = await cloudinary.uploader.destroy(publicId);
-      
+
       return {
         success: result.result === 'ok',
-        message: result.result === 'ok' ? 'File deleted successfully' : 'Failed to delete file',
+        message:
+          result.result === 'ok'
+            ? 'File deleted successfully'
+            : 'Failed to delete file',
       };
     } catch (error) {
       throw new InternalServerErrorException({
@@ -138,7 +168,9 @@ export class FileUploadService {
     }
 
     if (file.size > this.maxFileSize) {
-      throw new BadRequestException(`File size exceeds maximum limit of ${this.maxFileSize / (1024 * 1024)}MB`);
+      throw new BadRequestException(
+        `File size exceeds maximum limit of ${this.maxFileSize / (1024 * 1024)}MB`,
+      );
     }
 
     const allAllowedTypes = [
@@ -148,7 +180,9 @@ export class FileUploadService {
     ];
 
     if (!allAllowedTypes.includes(file.mimetype)) {
-      throw new BadRequestException(`File type ${file.mimetype} is not allowed`);
+      throw new BadRequestException(
+        `File type ${file.mimetype} is not allowed`,
+      );
     }
   }
 

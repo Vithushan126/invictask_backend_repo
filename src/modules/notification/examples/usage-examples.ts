@@ -7,7 +7,7 @@ import {
   ProjectRole,
   NotificationChannel,
   NotificationPriority,
-} from '../enums/notification.enum';
+} from '../../../modules/notification/enums/notification.enum';
 
 /**
  * Example service showing how to integrate notifications into your application

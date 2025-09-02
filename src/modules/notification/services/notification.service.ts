@@ -1,28 +1,28 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { EmailService } from './email.service';
 import { InAppNotificationService } from './in-app-notification.service';
-import { 
-  CreateNotificationDto, 
-  NotificationDto, 
+import {
+  CreateNotificationDto,
+  NotificationDto,
   TaskNotificationDataDto,
   ProjectNotificationDataDto,
   CommentNotificationDataDto,
   NotificationPreferencesDto,
   BulkNotificationDto,
   NotificationStatsDto,
-  NotificationFilterDto
+  NotificationFilterDto,
 } from '../dto/notification.dto';
-import { 
-  NotificationType, 
-  NotificationChannel, 
+import {
+  NotificationType,
+  NotificationChannel,
   NotificationStatus,
-  NotificationPriority 
+  NotificationPriority,
 } from '../enums/notification.enum';
 
 @Injectable()
 export class NotificationService {
   private readonly logger = new Logger(NotificationService.name);
-  
+
   // In a real application, this would be stored in a database
   private userPreferences: Map<string, NotificationPreferencesDto> = new Map();
 
@@ -31,24 +31,28 @@ export class NotificationService {
     private readonly inAppService: InAppNotificationService,
   ) {}
 
-  async sendNotification(notificationData: CreateNotificationDto): Promise<NotificationDto[]> {
+  async sendNotification(
+    notificationData: CreateNotificationDto,
+  ): Promise<NotificationDto[]> {
     const results: NotificationDto[] = [];
-    
+
     // Get user preferences
-    const preferences = await this.getUserPreferences(notificationData.recipientId);
-    
+    const preferences = await this.getUserPreferences(
+      notificationData.recipientId,
+    );
+
     // Filter channels based on user preferences
     const enabledChannels = this.filterChannelsByPreferences(
-      notificationData.channels, 
-      notificationData.type, 
-      preferences
+      notificationData.channels,
+      notificationData.type,
+      preferences,
     );
 
     // Send to each enabled channel
     for (const channel of enabledChannels) {
       try {
         let result: NotificationDto | null = null;
-        
+
         switch (channel) {
           case NotificationChannel.EMAIL:
             result = await this.sendEmailNotification(notificationData);
@@ -61,12 +65,14 @@ export class NotificationService {
             break;
           // Add other channels as needed
         }
-        
+
         if (result) {
           results.push(result);
         }
       } catch (error) {
-        this.logger.error(`Failed to send notification via ${channel}: ${error.message}`);
+        this.logger.error(
+          `Failed to send notification via ${channel}: ${error.message}`,
+        );
       }
     }
 
@@ -77,7 +83,7 @@ export class NotificationService {
     type: NotificationType,
     recipientId: string,
     taskData: TaskNotificationDataDto,
-    senderId?: string
+    senderId?: string,
   ): Promise<NotificationDto[]> {
     const notificationData: CreateNotificationDto = {
       type,
@@ -97,7 +103,7 @@ export class NotificationService {
     type: NotificationType,
     recipientId: string,
     projectData: ProjectNotificationDataDto,
-    senderId?: string
+    senderId?: string,
   ): Promise<NotificationDto[]> {
     const notificationData: CreateNotificationDto = {
       type,
@@ -117,7 +123,7 @@ export class NotificationService {
     type: NotificationType,
     recipientId: string,
     commentData: CommentNotificationDataDto,
-    senderId?: string
+    senderId?: string,
   ): Promise<NotificationDto[]> {
     const notificationData: CreateNotificationDto = {
       type,
@@ -126,17 +132,21 @@ export class NotificationService {
       recipientId,
       senderId,
       channels: [NotificationChannel.EMAIL, NotificationChannel.IN_APP],
-      priority: type === NotificationType.COMMENT_MENTION ? 
-        NotificationPriority.HIGH : NotificationPriority.MEDIUM,
+      priority:
+        type === NotificationType.COMMENT_MENTION
+          ? NotificationPriority.HIGH
+          : NotificationPriority.MEDIUM,
       data: commentData,
     };
 
     return this.sendNotification(notificationData);
   }
 
-  async sendBulkNotifications(bulkData: BulkNotificationDto): Promise<NotificationDto[]> {
+  async sendBulkNotifications(
+    bulkData: BulkNotificationDto,
+  ): Promise<NotificationDto[]> {
     const results: NotificationDto[] = [];
-    
+
     for (const notification of bulkData.notifications) {
       try {
         const notificationResults = await this.sendNotification(notification);
@@ -151,13 +161,16 @@ export class NotificationService {
   }
 
   async getUserNotifications(
-    userId: string, 
-    filter?: NotificationFilterDto
+    userId: string,
+    filter?: NotificationFilterDto,
   ): Promise<NotificationDto[]> {
     return this.inAppService.getUserNotifications(userId, filter);
   }
 
-  async markNotificationAsRead(userId: string, notificationId: string): Promise<boolean> {
+  async markNotificationAsRead(
+    userId: string,
+    notificationId: string,
+  ): Promise<boolean> {
     return this.inAppService.markAsRead(userId, notificationId);
   }
 
@@ -170,53 +183,59 @@ export class NotificationService {
   }
 
   async updateUserPreferences(
-    userId: string, 
-    preferences: NotificationPreferencesDto
+    userId: string,
+    preferences: NotificationPreferencesDto,
   ): Promise<void> {
     this.userPreferences.set(userId, preferences);
     this.logger.log(`Updated notification preferences for user ${userId}`);
   }
 
-  async getUserPreferences(userId: string): Promise<NotificationPreferencesDto> {
-    return this.userPreferences.get(userId) || this.getDefaultPreferences(userId);
+  async getUserPreferences(
+    userId: string,
+  ): Promise<NotificationPreferencesDto> {
+    return (
+      this.userPreferences.get(userId) || this.getDefaultPreferences(userId)
+    );
   }
 
-  private async sendEmailNotification(notificationData: CreateNotificationDto): Promise<NotificationDto | null> {
+  private async sendEmailNotification(
+    notificationData: CreateNotificationDto,
+  ): Promise<NotificationDto | null> {
     // This would typically get the user's email from a user service
     const userEmail = `user-${notificationData.recipientId}@example.com`;
-    
+
     try {
       let emailSent = false;
-      
+
       switch (notificationData.type) {
         case NotificationType.TASK_ASSIGNED:
           emailSent = await this.emailService.sendTaskAssignedEmail(
-            userEmail, 
-            notificationData.data as TaskNotificationDataDto
+            userEmail,
+            notificationData.data as TaskNotificationDataDto,
           );
           break;
         case NotificationType.TASK_DUE_SOON:
           emailSent = await this.emailService.sendTaskDueReminderEmail(
-            userEmail, 
-            notificationData.data as TaskNotificationDataDto
+            userEmail,
+            notificationData.data as TaskNotificationDataDto,
           );
           break;
         case NotificationType.PROJECT_MEMBER_ADDED:
           emailSent = await this.emailService.sendProjectInvitationEmail(
-            userEmail, 
-            notificationData.data as ProjectNotificationDataDto
+            userEmail,
+            notificationData.data as ProjectNotificationDataDto,
           );
           break;
         case NotificationType.COMMENT_MENTION:
           emailSent = await this.emailService.sendCommentMentionEmail(
-            userEmail, 
-            notificationData.data as CommentNotificationDataDto
+            userEmail,
+            notificationData.data as CommentNotificationDataDto,
           );
           break;
         case NotificationType.TASK_COMPLETED:
           emailSent = await this.emailService.sendTaskCompletedEmail(
-            userEmail, 
-            notificationData.data as TaskNotificationDataDto
+            userEmail,
+            notificationData.data as TaskNotificationDataDto,
           );
           break;
         // Add more email types as needed
@@ -235,11 +254,13 @@ export class NotificationService {
     } catch (error) {
       this.logger.error(`Failed to send email notification: ${error.message}`);
     }
-    
+
     return null;
   }
 
-  private async sendInAppNotification(notificationData: CreateNotificationDto): Promise<NotificationDto> {
+  private async sendInAppNotification(
+    notificationData: CreateNotificationDto,
+  ): Promise<NotificationDto> {
     return this.inAppService.createNotification({
       userId: notificationData.recipientId,
       title: notificationData.title,
@@ -250,11 +271,15 @@ export class NotificationService {
     });
   }
 
-  private async sendPushNotification(notificationData: CreateNotificationDto): Promise<NotificationDto | null> {
+  private async sendPushNotification(
+    notificationData: CreateNotificationDto,
+  ): Promise<NotificationDto | null> {
     // Implement push notification logic here
     // This would integrate with services like Firebase Cloud Messaging, Apple Push Notification Service, etc.
-    this.logger.log(`Push notification would be sent: ${notificationData.title}`);
-    
+    this.logger.log(
+      `Push notification would be sent: ${notificationData.title}`,
+    );
+
     return {
       id: `push_${Date.now()}`,
       ...notificationData,
@@ -266,11 +291,11 @@ export class NotificationService {
   }
 
   private filterChannelsByPreferences(
-    channels: NotificationChannel[], 
-    type: NotificationType, 
-    preferences: NotificationPreferencesDto
+    channels: NotificationChannel[],
+    type: NotificationType,
+    preferences: NotificationPreferencesDto,
   ): NotificationChannel[] {
-    return channels.filter(channel => {
+    return channels.filter((channel) => {
       switch (channel) {
         case NotificationChannel.EMAIL:
           return this.isEmailNotificationEnabled(type, preferences);
@@ -284,9 +309,12 @@ export class NotificationService {
     });
   }
 
-  private isEmailNotificationEnabled(type: NotificationType, preferences: NotificationPreferencesDto): boolean {
+  private isEmailNotificationEnabled(
+    type: NotificationType,
+    preferences: NotificationPreferencesDto,
+  ): boolean {
     const emailPrefs = preferences.emailNotifications;
-    
+
     switch (type) {
       case NotificationType.TASK_ASSIGNED:
         return emailPrefs.taskAssigned;
@@ -309,9 +337,12 @@ export class NotificationService {
     }
   }
 
-  private isInAppNotificationEnabled(type: NotificationType, preferences: NotificationPreferencesDto): boolean {
+  private isInAppNotificationEnabled(
+    type: NotificationType,
+    preferences: NotificationPreferencesDto,
+  ): boolean {
     const inAppPrefs = preferences.inAppNotifications;
-    
+
     switch (type) {
       case NotificationType.TASK_ASSIGNED:
       case NotificationType.TASK_UPDATED:
@@ -332,9 +363,12 @@ export class NotificationService {
     }
   }
 
-  private isPushNotificationEnabled(type: NotificationType, preferences: NotificationPreferencesDto): boolean {
+  private isPushNotificationEnabled(
+    type: NotificationType,
+    preferences: NotificationPreferencesDto,
+  ): boolean {
     const pushPrefs = preferences.pushNotifications;
-    
+
     switch (type) {
       case NotificationType.TASK_ASSIGNED:
         return pushPrefs.taskAssigned;
@@ -350,7 +384,10 @@ export class NotificationService {
     }
   }
 
-  private getTaskNotificationTitle(type: NotificationType, taskData: TaskNotificationDataDto): string {
+  private getTaskNotificationTitle(
+    type: NotificationType,
+    taskData: TaskNotificationDataDto,
+  ): string {
     switch (type) {
       case NotificationType.TASK_ASSIGNED:
         return 'New Task Assigned';
@@ -365,7 +402,10 @@ export class NotificationService {
     }
   }
 
-  private getTaskNotificationMessage(type: NotificationType, taskData: TaskNotificationDataDto): string {
+  private getTaskNotificationMessage(
+    type: NotificationType,
+    taskData: TaskNotificationDataDto,
+  ): string {
     switch (type) {
       case NotificationType.TASK_ASSIGNED:
         return `You have been assigned to "${taskData.taskTitle}" in ${taskData.projectName}`;
@@ -380,7 +420,10 @@ export class NotificationService {
     }
   }
 
-  private getProjectNotificationTitle(type: NotificationType, projectData: ProjectNotificationDataDto): string {
+  private getProjectNotificationTitle(
+    type: NotificationType,
+    projectData: ProjectNotificationDataDto,
+  ): string {
     switch (type) {
       case NotificationType.PROJECT_MEMBER_ADDED:
         return 'Added to Project';
@@ -391,7 +434,10 @@ export class NotificationService {
     }
   }
 
-  private getProjectNotificationMessage(type: NotificationType, projectData: ProjectNotificationDataDto): string {
+  private getProjectNotificationMessage(
+    type: NotificationType,
+    projectData: ProjectNotificationDataDto,
+  ): string {
     switch (type) {
       case NotificationType.PROJECT_MEMBER_ADDED:
         return `You have been added to "${projectData.projectName}"`;
@@ -402,7 +448,10 @@ export class NotificationService {
     }
   }
 
-  private getCommentNotificationTitle(type: NotificationType, commentData: CommentNotificationDataDto): string {
+  private getCommentNotificationTitle(
+    type: NotificationType,
+    commentData: CommentNotificationDataDto,
+  ): string {
     switch (type) {
       case NotificationType.COMMENT_MENTION:
         return 'You were mentioned';
@@ -413,7 +462,10 @@ export class NotificationService {
     }
   }
 
-  private getCommentNotificationMessage(type: NotificationType, commentData: CommentNotificationDataDto): string {
+  private getCommentNotificationMessage(
+    type: NotificationType,
+    commentData: CommentNotificationDataDto,
+  ): string {
     switch (type) {
       case NotificationType.COMMENT_MENTION:
         return `${commentData.authorName} mentioned you in a comment`;
@@ -424,7 +476,9 @@ export class NotificationService {
     }
   }
 
-  private getNotificationPriority(type: NotificationType): NotificationPriority {
+  private getNotificationPriority(
+    type: NotificationType,
+  ): NotificationPriority {
     const highPriorityTypes = [
       NotificationType.TASK_ASSIGNED,
       NotificationType.TASK_DUE_SOON,
@@ -440,11 +494,11 @@ export class NotificationService {
     if (urgentTypes.includes(type)) {
       return NotificationPriority.URGENT;
     }
-    
+
     if (highPriorityTypes.includes(type)) {
       return NotificationPriority.HIGH;
     }
-    
+
     return NotificationPriority.MEDIUM;
   }
 

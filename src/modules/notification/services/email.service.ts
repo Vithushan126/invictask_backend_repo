@@ -1,10 +1,14 @@
-import { Injectable, Logger, InternalServerErrorException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { MailConfig } from '../config/mail.config';
-import { 
-  EmailNotificationDto, 
-  TaskNotificationDataDto, 
+import {
+  EmailNotificationDto,
+  TaskNotificationDataDto,
   ProjectNotificationDataDto,
-  CommentNotificationDataDto 
+  CommentNotificationDataDto,
 } from '../dto/notification.dto';
 import { EmailTemplate } from '../enums/notification.enum';
 
@@ -17,7 +21,7 @@ export class EmailService {
   async sendEmail(emailData: EmailNotificationDto): Promise<boolean> {
     try {
       const transporter = this.mailConfig.getTransporter();
-      
+
       const mailOptions = {
         from: this.mailConfig.getFromAddress(),
         to: emailData.to,
@@ -39,11 +43,11 @@ export class EmailService {
   }
 
   async sendTaskAssignedEmail(
-    recipientEmail: string, 
-    taskData: TaskNotificationDataDto
+    recipientEmail: string,
+    taskData: TaskNotificationDataDto,
   ): Promise<boolean> {
     const htmlContent = this.generateTaskAssignedTemplate(taskData);
-    
+
     return this.sendEmail({
       to: recipientEmail,
       subject: `New Task Assigned: ${taskData.taskTitle}`,
@@ -54,11 +58,11 @@ export class EmailService {
   }
 
   async sendTaskDueReminderEmail(
-    recipientEmail: string, 
-    taskData: TaskNotificationDataDto
+    recipientEmail: string,
+    taskData: TaskNotificationDataDto,
   ): Promise<boolean> {
     const htmlContent = this.generateTaskDueReminderTemplate(taskData);
-    
+
     return this.sendEmail({
       to: recipientEmail,
       subject: `Task Due Soon: ${taskData.taskTitle}`,
@@ -69,11 +73,11 @@ export class EmailService {
   }
 
   async sendProjectInvitationEmail(
-    recipientEmail: string, 
-    projectData: ProjectNotificationDataDto
+    recipientEmail: string,
+    projectData: ProjectNotificationDataDto,
   ): Promise<boolean> {
     const htmlContent = this.generateProjectInvitationTemplate(projectData);
-    
+
     return this.sendEmail({
       to: recipientEmail,
       subject: `You've been invited to join ${projectData.projectName}`,
@@ -84,11 +88,11 @@ export class EmailService {
   }
 
   async sendCommentMentionEmail(
-    recipientEmail: string, 
-    commentData: CommentNotificationDataDto
+    recipientEmail: string,
+    commentData: CommentNotificationDataDto,
   ): Promise<boolean> {
     const htmlContent = this.generateCommentMentionTemplate(commentData);
-    
+
     return this.sendEmail({
       to: recipientEmail,
       subject: `You were mentioned in a comment`,
@@ -99,11 +103,11 @@ export class EmailService {
   }
 
   async sendTaskCompletedEmail(
-    recipientEmail: string, 
-    taskData: TaskNotificationDataDto
+    recipientEmail: string,
+    taskData: TaskNotificationDataDto,
   ): Promise<boolean> {
     const htmlContent = this.generateTaskCompletedTemplate(taskData);
-    
+
     return this.sendEmail({
       to: recipientEmail,
       subject: `Task Completed: ${taskData.taskTitle}`,
@@ -113,7 +117,9 @@ export class EmailService {
     });
   }
 
-  private generateTaskAssignedTemplate(taskData: TaskNotificationDataDto): string {
+  private generateTaskAssignedTemplate(
+    taskData: TaskNotificationDataDto,
+  ): string {
     return `
       <!DOCTYPE html>
       <html>
@@ -162,10 +168,16 @@ export class EmailService {
     `;
   }
 
-  private generateTaskDueReminderTemplate(taskData: TaskNotificationDataDto): string {
-    const daysUntilDue = taskData.dueDate ? 
-      Math.ceil((new Date(taskData.dueDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : 0;
-    
+  private generateTaskDueReminderTemplate(
+    taskData: TaskNotificationDataDto,
+  ): string {
+    const daysUntilDue = taskData.dueDate
+      ? Math.ceil(
+          (new Date(taskData.dueDate).getTime() - new Date().getTime()) /
+            (1000 * 60 * 60 * 24),
+        )
+      : 0;
+
     return `
       <!DOCTYPE html>
       <html>
@@ -216,7 +228,9 @@ export class EmailService {
     `;
   }
 
-  private generateProjectInvitationTemplate(projectData: ProjectNotificationDataDto): string {
+  private generateProjectInvitationTemplate(
+    projectData: ProjectNotificationDataDto,
+  ): string {
     return `
       <!DOCTYPE html>
       <html>
@@ -264,7 +278,9 @@ export class EmailService {
     `;
   }
 
-  private generateCommentMentionTemplate(commentData: CommentNotificationDataDto): string {
+  private generateCommentMentionTemplate(
+    commentData: CommentNotificationDataDto,
+  ): string {
     return `
       <!DOCTYPE html>
       <html>
@@ -313,7 +329,9 @@ export class EmailService {
     `;
   }
 
-  private generateTaskCompletedTemplate(taskData: TaskNotificationDataDto): string {
+  private generateTaskCompletedTemplate(
+    taskData: TaskNotificationDataDto,
+  ): string {
     return `
       <!DOCTYPE html>
       <html>
@@ -363,11 +381,16 @@ export class EmailService {
 
   private getPriorityColor(priority: string): string {
     switch (priority.toLowerCase()) {
-      case 'urgent': return '#dc2626';
-      case 'high': return '#f59e0b';
-      case 'normal': return '#10b981';
-      case 'low': return '#6b7280';
-      default: return '#6b7280';
+      case 'urgent':
+        return '#dc2626';
+      case 'high':
+        return '#f59e0b';
+      case 'normal':
+        return '#10b981';
+      case 'low':
+        return '#6b7280';
+      default:
+        return '#6b7280';
     }
   }
 }
