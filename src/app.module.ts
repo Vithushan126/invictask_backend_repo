@@ -33,6 +33,7 @@ import { UserModule } from './modules/user/user.module';
 import { OrganizationModule } from './modules/organization/organization.module';
 import { FileUploadModule } from './modules/file-upload/file-upload.module';
 import { NotificationModule } from './modules/notification/notification.module';
+import { DatabaseModule } from './database/database.module';
 
 @Module({
   imports: [
@@ -78,6 +79,7 @@ import { NotificationModule } from './modules/notification/notification.module';
       inject: [ConfigService],
     }),
     // Core modules
+    DatabaseModule,
     AuthModule,
     UserModule,
     OrganizationModule,
