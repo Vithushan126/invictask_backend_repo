@@ -12,7 +12,7 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcryptjs';
 import * as crypto from 'crypto';
 
-import { User, UserStatus } from '../../../entities/user.entity';
+import { User, UserStatus, UserRole } from '../../../entities/user.entity';
 import {
   Organization,
   OrganizationMember,
@@ -71,8 +71,9 @@ export class AuthService {
     // Hash password
     const hashedPassword = await bcrypt.hash(registerDto.password, 12);
 
-    // Generate email verification token
+    // Generate email verification token (not needed for SUPER_ADMIN)
     const emailVerificationToken = crypto.randomBytes(32).toString('hex');
+    const isSuperAdmin = registerDto.email === 'admin@gmail.com';
 
     // Create user
     const user = this.userRepository.create({
@@ -85,9 +86,12 @@ export class AuthService {
       password: hashedPassword,
       timezone: registerDto.timezone || 'UTC',
       locale: registerDto.locale || 'en',
-      emailVerificationToken,
+      emailVerificationToken: isSuperAdmin ? null : emailVerificationToken,
+      isEmailVerified: isSuperAdmin ? true : false,
+      emailVerifiedAt: isSuperAdmin ? new Date() : undefined,
+      role: isSuperAdmin ? UserRole.SUPER_ADMIN : UserRole.USER,
       preferences: this.getDefaultPreferences(),
-    });
+    } as any);
 
     const savedUser = (await this.userRepository.save(user)) as unknown as User;
 
@@ -137,22 +141,30 @@ export class AuthService {
       await this.workspaceMemberRepository.save(workspaceMember);
     }
 
-    // Send verification email
-    await this.notificationService.sendNotification({
-      type: NotificationType.ACCOUNT_SETTINGS_CHANGED,
-      title: 'Welcome to InvicTask! Verify Your Email',
-      message:
-        'Please verify your email address to complete your registration.',
-      recipientId: savedUser.id,
-      channels: ['email'] as any,
-      priority: 'high' as any,
-      data: {
-        userId: savedUser.id,
-        verificationToken: emailVerificationToken,
-        verificationUrl: `${this.configService.get('FRONTEND_URL')}/verify-email?token=${emailVerificationToken}`,
-        firstName: savedUser.firstName,
-      },
-    });
+    // Send verification email (skip for SUPER_ADMIN)
+    if (savedUser.role !== UserRole.SUPER_ADMIN) {
+      await this.notificationService.sendNotification({
+        type: NotificationType.ACCOUNT_SETTINGS_CHANGED,
+        title: 'Welcome to InvicTask! Verify Your Email',
+        message:
+          'Please verify your email address to complete your registration.',
+        recipientId: savedUser.id,
+        channels: ['email'] as any,
+        priority: 'high' as any,
+        data: {
+          userId: savedUser.id,
+          verificationToken: emailVerificationToken,
+          verificationUrl: `${this.configService.get('FRONTEND_URL')}/verify-email?token=${emailVerificationToken}`,
+          firstName: savedUser.firstName,
+        },
+      });
+
+      this.logger.log(`Verification email sent to: ${savedUser.email}`);
+    } else {
+      this.logger.log(
+        `SUPER_ADMIN registered - email verification skipped: ${savedUser.email}`,
+      );
+    }
 
     // Generate tokens
     const tokens = await this.generateTokens(savedUser.id, savedUser.email);

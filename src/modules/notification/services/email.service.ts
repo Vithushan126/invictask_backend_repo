@@ -379,6 +379,208 @@ export class EmailService {
     `;
   }
 
+  async sendAccountSettingsChangedEmail(
+    recipientEmail: string,
+    verificationData: any,
+  ): Promise<boolean> {
+    const htmlContent =
+      this.generateEmailVerificationTemplate(verificationData);
+
+    const emailData: EmailNotificationDto = {
+      to: recipientEmail,
+      subject: 'Welcome to InvicTask! Verify Your Email',
+      htmlContent,
+      textContent: `Welcome to InvicTask! Please verify your email address by clicking the link: ${verificationData.verificationUrl}`,
+    };
+
+    return this.sendEmail(emailData);
+  }
+
+  private generateEmailVerificationTemplate(verificationData: any): string {
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Verify Your Email - InvicTask</title>
+        <style>
+          body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+          }
+          .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+          }
+          .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px 20px;
+            text-align: center;
+          }
+          .header h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 300;
+          }
+          .content {
+            padding: 40px 30px;
+          }
+          .welcome-message {
+            font-size: 18px;
+            margin-bottom: 20px;
+            color: #2d3748;
+          }
+          .verification-box {
+            background: #f7fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 25px;
+            margin: 25px 0;
+            text-align: center;
+          }
+          .verify-button {
+            display: inline-block;
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 16px;
+            transition: transform 0.2s;
+          }
+          .verify-button:hover {
+            transform: translateY(-2px);
+          }
+          .security-note {
+            background: #fff5f5;
+            border-left: 4px solid #f56565;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+          }
+          .footer {
+            background: #f7fafc;
+            text-align: center;
+            padding: 30px 20px;
+            color: #718096;
+            font-size: 14px;
+          }
+          .logo {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+          }
+          .features {
+            display: flex;
+            justify-content: space-around;
+            margin: 30px 0;
+            flex-wrap: wrap;
+          }
+          .feature {
+            text-align: center;
+            flex: 1;
+            min-width: 150px;
+            margin: 10px;
+          }
+          .feature-icon {
+            font-size: 30px;
+            margin-bottom: 10px;
+          }
+          @media (max-width: 600px) {
+            .container { margin: 10px; }
+            .content { padding: 20px; }
+            .features { flex-direction: column; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <div class="logo">📋 InvicTask</div>
+            <h1>Welcome to InvicTask!</h1>
+            <p>Your journey to better project management starts here</p>
+          </div>
+
+          <div class="content">
+            <div class="welcome-message">
+              <p>Hi <strong>${verificationData.firstName}</strong>,</p>
+              <p>Welcome to <strong>InvicTask</strong> - the complete project management solution that helps teams collaborate, organize, and achieve their goals!</p>
+            </div>
+
+            <div class="features">
+              <div class="feature">
+                <div class="feature-icon">🚀</div>
+                <h4>Project Management</h4>
+                <p>Organize your work with powerful project tools</p>
+              </div>
+              <div class="feature">
+                <div class="feature-icon">👥</div>
+                <h4>Team Collaboration</h4>
+                <p>Work together seamlessly with your team</p>
+              </div>
+              <div class="feature">
+                <div class="feature-icon">📊</div>
+                <h4>Progress Tracking</h4>
+                <p>Monitor progress with real-time dashboards</p>
+              </div>
+            </div>
+
+            <div class="verification-box">
+              <h3>🔐 Verify Your Email Address</h3>
+              <p>To get started and secure your account, please verify your email address by clicking the button below:</p>
+
+              <a href="${verificationData.verificationUrl}" class="verify-button">
+                ✅ Verify Email Address
+              </a>
+
+              <p style="margin-top: 20px; font-size: 14px; color: #718096;">
+                This link will expire in 24 hours for security reasons.
+              </p>
+            </div>
+
+            <div class="security-note">
+              <h4>🛡️ Security Note</h4>
+              <p>If you didn't create an account with InvicTask, please ignore this email. Your email address will not be added to our system.</p>
+            </div>
+
+            <p>Once verified, you'll be able to:</p>
+            <ul>
+              <li>✅ Create and manage projects</li>
+              <li>✅ Invite team members to collaborate</li>
+              <li>✅ Track tasks and deadlines</li>
+              <li>✅ Access powerful productivity tools</li>
+              <li>✅ Get real-time notifications</li>
+            </ul>
+
+            <p>If you have any questions or need help getting started, our support team is here to help!</p>
+
+            <p>Best regards,<br>
+            <strong>The InvicTask Team</strong></p>
+          </div>
+
+          <div class="footer">
+            <p><strong>InvicTask</strong> - Complete Project Management Solution</p>
+            <p>This email was sent because you signed up for InvicTask.</p>
+            <p>If you can't click the button above, copy and paste this link into your browser:</p>
+            <p style="word-break: break-all; color: #667eea;">${verificationData.verificationUrl}</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
   private getPriorityColor(priority: string): string {
     switch (priority.toLowerCase()) {
       case 'urgent':

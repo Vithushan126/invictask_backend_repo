@@ -3,16 +3,6 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import { User, UserRole, UserStatus } from '../../entities/user.entity';
-import {
-  Organization,
-  OrganizationMember,
-  OrganizationRole,
-} from '../../entities/organization.entity';
-import {
-  Workspace,
-  WorkspaceMember,
-  WorkspaceRole,
-} from '../../entities/workspace.entity';
 
 @Injectable()
 export class UserSeeder {
@@ -21,14 +11,6 @@ export class UserSeeder {
   constructor(
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
-    @InjectRepository(Organization)
-    private readonly organizationRepository: Repository<Organization>,
-    @InjectRepository(OrganizationMember)
-    private readonly organizationMemberRepository: Repository<OrganizationMember>,
-    @InjectRepository(Workspace)
-    private readonly workspaceRepository: Repository<Workspace>,
-    @InjectRepository(WorkspaceMember)
-    private readonly workspaceMemberRepository: Repository<WorkspaceMember>,
   ) {}
 
   async seed(): Promise<void> {
@@ -56,6 +38,7 @@ export class UserSeeder {
         status: UserStatus.ACTIVE,
         isEmailVerified: true,
         emailVerifiedAt: new Date(),
+        emailVerificationToken: null, // No verification needed for SUPER_ADMIN
         timezone: 'UTC',
         locale: 'en',
         preferences: {
@@ -79,11 +62,12 @@ export class UserSeeder {
         },
       });
 
-      const savedSuperAdmin = await this.userRepository.save(superAdmin);
+      await this.userRepository.save(superAdmin);
 
       this.logger.log('✅ SUPER_ADMIN seeded successfully!');
       this.logger.log('📧 Email: admin@gmail.com');
       this.logger.log('🔑 Password: admin@123');
+      this.logger.log('🔐 Email verification: Not required for SUPER_ADMIN');
     } catch (error) {
       this.logger.error('Failed to seed SUPER_ADMIN:', error.message);
       throw error;

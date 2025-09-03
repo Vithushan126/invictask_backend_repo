@@ -34,6 +34,8 @@ export class NotificationService {
   async sendNotification(
     notificationData: CreateNotificationDto,
   ): Promise<NotificationDto[]> {
+    console.log('sendNotification', notificationData);
+
     const results: NotificationDto[] = [];
 
     // Get user preferences
@@ -237,6 +239,14 @@ export class NotificationService {
             userEmail,
             notificationData.data as TaskNotificationDataDto,
           );
+          break;
+        case NotificationType.ACCOUNT_SETTINGS_CHANGED:
+          this.logger.log(`Sending email verification to: ${userEmail}`);
+          emailSent = await this.emailService.sendAccountSettingsChangedEmail(
+            userEmail,
+            notificationData.data as any,
+          );
+          this.logger.log(`Email verification sent successfully: ${emailSent}`);
           break;
         // Add more email types as needed
       }

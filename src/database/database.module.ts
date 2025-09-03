@@ -2,54 +2,14 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UserSeeder } from './seeders/user.seeder';
 
-// Import all entities
+// Import entities for seeding
 import { User } from '../entities/user.entity';
-import {
-  Organization,
-  OrganizationMember,
-  OrganizationInvitation,
-} from '../entities/organization.entity';
-import {
-  Workspace,
-  WorkspaceMember,
-  WorkspaceInvitation,
-} from '../entities/workspace.entity';
-import {
-  Project,
-  ProjectMember,
-  ProjectFile,
-} from '../entities/project.entity';
-import {
-  Task,
-  TaskComment,
-  TaskAttachment,
-  TaskTimeEntry,
-  TaskChecklist,
-  TaskChecklistItem,
-  TaskCommentAttachment,
-} from '../entities/task.entity';
 import { SeederService } from './seeder.service';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([
-      User,
-      Organization,
-      OrganizationMember,
-      OrganizationInvitation,
-      Workspace,
-      WorkspaceMember,
-      WorkspaceInvitation,
-      Project,
-      ProjectMember,
-      ProjectFile,
-      Task,
-      TaskComment,
-      TaskAttachment,
-      TaskTimeEntry,
-      TaskChecklist,
-      TaskChecklistItem,
-      TaskCommentAttachment,
+      User, // Only User entity needed for seeding SUPER_ADMIN
     ]),
   ],
   providers: [UserSeeder, SeederService],
