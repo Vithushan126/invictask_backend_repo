@@ -40,6 +40,7 @@ export enum NotificationType {
   SYSTEM_UPDATE = 'system_update',
   ACCOUNT_SECURITY = 'account_security',
   ACCOUNT_SETTINGS_CHANGED = 'account_settings_changed',
+  EMAIL_VERIFICATION_SUCCESS = 'email_verification_success',
 
   // Workspace Related
   WORKSPACE_CREATED = 'workspace_created',

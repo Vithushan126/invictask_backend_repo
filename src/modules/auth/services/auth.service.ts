@@ -383,7 +383,7 @@ export class AuthService {
 
     // Send welcome email
     await this.notificationService.sendNotification({
-      type: NotificationType.ACCOUNT_SETTINGS_CHANGED,
+      type: NotificationType.EMAIL_VERIFICATION_SUCCESS,
       title: 'Email Verified Successfully!',
       message:
         'Welcome to InvicTask! Your email has been verified and your account is now active.',

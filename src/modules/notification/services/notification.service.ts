@@ -248,6 +248,14 @@ export class NotificationService {
           );
           this.logger.log(`Email verification sent successfully: ${emailSent}`);
           break;
+        case NotificationType.EMAIL_VERIFICATION_SUCCESS:
+          this.logger.log(`Sending welcome email to: ${userEmail}`);
+          emailSent = await this.emailService.sendWelcomeEmail(
+            userEmail,
+            notificationData.data as any,
+          );
+          this.logger.log(`Welcome email sent successfully: ${emailSent}`);
+          break;
         // Add more email types as needed
       }
 

@@ -396,6 +396,22 @@ export class EmailService {
     return this.sendEmail(emailData);
   }
 
+  async sendWelcomeEmail(
+    recipientEmail: string,
+    welcomeData: any,
+  ): Promise<boolean> {
+    const htmlContent = this.generateWelcomeTemplate(welcomeData);
+
+    const emailData: EmailNotificationDto = {
+      to: recipientEmail,
+      subject: '🎉 Welcome to InvicTask! Your Account is Ready',
+      htmlContent,
+      textContent: `Welcome to InvicTask! Your email has been verified and your account is now active. Start managing your projects today!`,
+    };
+
+    return this.sendEmail(emailData);
+  }
+
   private generateEmailVerificationTemplate(verificationData: any): string {
     return `
       <!DOCTYPE html>
@@ -574,6 +590,222 @@ export class EmailService {
             <p>This email was sent because you signed up for InvicTask.</p>
             <p>If you can't click the button above, copy and paste this link into your browser:</p>
             <p style="word-break: break-all; color: #667eea;">${verificationData.verificationUrl}</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
+  private generateWelcomeTemplate(welcomeData: any): string {
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Welcome to InvicTask! 🎉</title>
+        <style>
+          body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+          }
+          .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+          }
+          .header {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            padding: 40px 20px;
+            text-align: center;
+          }
+          .header h1 {
+            margin: 0;
+            font-size: 32px;
+            font-weight: 300;
+          }
+          .success-badge {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50px;
+            padding: 10px 20px;
+            display: inline-block;
+            margin-bottom: 20px;
+            font-size: 18px;
+          }
+          .content {
+            padding: 40px 30px;
+          }
+          .welcome-message {
+            font-size: 18px;
+            margin-bottom: 30px;
+            color: #2d3748;
+            text-align: center;
+          }
+          .success-box {
+            background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
+            border: 2px solid #28a745;
+            border-radius: 12px;
+            padding: 30px;
+            margin: 25px 0;
+            text-align: center;
+          }
+          .success-icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+          }
+          .get-started-button {
+            display: inline-block;
+            padding: 15px 30px;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+            text-decoration: none;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 16px;
+            transition: transform 0.2s;
+            margin: 20px 0;
+          }
+          .get-started-button:hover {
+            transform: translateY(-2px);
+          }
+          .features-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+          }
+          .feature-card {
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            border: 1px solid #e2e8f0;
+          }
+          .feature-icon {
+            font-size: 32px;
+            margin-bottom: 15px;
+          }
+          .feature-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #2d3748;
+          }
+          .feature-desc {
+            font-size: 14px;
+            color: #718096;
+          }
+          .next-steps {
+            background: #fff5f5;
+            border-left: 4px solid #10b981;
+            padding: 20px;
+            margin: 30px 0;
+            border-radius: 4px;
+          }
+          .footer {
+            background: #f7fafc;
+            text-align: center;
+            padding: 30px 20px;
+            color: #718096;
+            font-size: 14px;
+          }
+          .logo {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+          }
+          @media (max-width: 600px) {
+            .container { margin: 10px; }
+            .content { padding: 20px; }
+            .features-grid { grid-template-columns: 1fr; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <div class="success-badge">✅ Email Verified</div>
+            <div class="logo">📋 InvicTask</div>
+            <h1>Welcome to InvicTask!</h1>
+            <p>Your account is now active and ready to use</p>
+          </div>
+
+          <div class="content">
+            <div class="welcome-message">
+              <p>Hi <strong>${welcomeData.firstName}</strong>,</p>
+              <p>🎉 <strong>Congratulations!</strong> Your email has been successfully verified and your InvicTask account is now fully active!</p>
+            </div>
+
+            <div class="success-box">
+              <div class="success-icon">🚀</div>
+              <h3>You're All Set!</h3>
+              <p>Your account was verified on <strong>${new Date(welcomeData.verifiedAt).toLocaleDateString()}</strong></p>
+              <a href="${process.env.FRONTEND_URL || 'http://localhost:3001'}/dashboard" class="get-started-button">
+                🏁 Start Managing Projects
+              </a>
+            </div>
+
+            <div class="features-grid">
+              <div class="feature-card">
+                <div class="feature-icon">📊</div>
+                <div class="feature-title">Project Management</div>
+                <div class="feature-desc">Create and organize projects with powerful tools and templates</div>
+              </div>
+              <div class="feature-card">
+                <div class="feature-icon">👥</div>
+                <div class="feature-title">Team Collaboration</div>
+                <div class="feature-desc">Invite team members and collaborate in real-time</div>
+              </div>
+              <div class="feature-card">
+                <div class="feature-icon">📈</div>
+                <div class="feature-title">Progress Tracking</div>
+                <div class="feature-desc">Monitor progress with dashboards and analytics</div>
+              </div>
+              <div class="feature-card">
+                <div class="feature-icon">⚡</div>
+                <div class="feature-title">Automation</div>
+                <div class="feature-desc">Automate workflows and save time on repetitive tasks</div>
+              </div>
+            </div>
+
+            <div class="next-steps">
+              <h4>🎯 What's Next?</h4>
+              <ul style="text-align: left; margin: 15px 0;">
+                <li>✅ <strong>Create your first project</strong> - Start organizing your work</li>
+                <li>✅ <strong>Invite team members</strong> - Collaborate with your team</li>
+                <li>✅ <strong>Set up workspaces</strong> - Organize projects by department or team</li>
+                <li>✅ <strong>Explore templates</strong> - Use pre-built project templates</li>
+                <li>✅ <strong>Configure notifications</strong> - Stay updated on important changes</li>
+              </ul>
+            </div>
+
+            <p style="text-align: center; margin: 30px 0;">
+              Need help getting started? Check out our
+              <a href="${process.env.FRONTEND_URL || 'http://localhost:3001'}/help" style="color: #10b981; text-decoration: none;">
+                📚 Help Center
+              </a>
+              or contact our support team.
+            </p>
+
+            <p style="text-align: center;">
+              Welcome aboard! 🎊<br>
+              <strong>The InvicTask Team</strong>
+            </p>
+          </div>
+
+          <div class="footer">
+            <p><strong>InvicTask</strong> - Complete Project Management Solution</p>
+            <p>You're receiving this email because you successfully verified your InvicTask account.</p>
+            <p>Ready to boost your productivity? <a href="${process.env.FRONTEND_URL || 'http://localhost:3001'}/dashboard" style="color: #10b981;">Login to your dashboard</a></p>
           </div>
         </div>
       </body>
