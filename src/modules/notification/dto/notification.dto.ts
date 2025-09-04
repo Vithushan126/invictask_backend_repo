@@ -20,6 +20,7 @@ export class CreateNotificationDto {
   data?: Record<string, any>;
   scheduledAt?: Date;
   expiresAt?: Date;
+  email?: string;
 }
 
 export class NotificationDto {

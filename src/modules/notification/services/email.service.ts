@@ -412,6 +412,109 @@ export class EmailService {
     return this.sendEmail(emailData);
   }
 
+  async sendForgotPasswordEmail(
+    recipientEmail: string,
+    resetData: any,
+  ): Promise<boolean> {
+    const htmlContent = this.generateForgotPasswordTemplate(resetData);
+
+    const emailData: EmailNotificationDto = {
+      to: recipientEmail,
+      subject: 'Password Reset Request',
+      htmlContent,
+      textContent: `You have requested to reset your password. Click the link below to reset it: ${resetData.resetUrl}`,
+    };
+
+    return this.sendEmail(emailData);
+  }
+
+  async sendPasswordResetEmail(
+    recipientEmail: string,
+    resetData: any,
+  ): Promise<boolean> {
+    const htmlContent = this.generatePasswordResetTemplate(resetData);
+
+    const emailData: EmailNotificationDto = {
+      to: recipientEmail,
+      subject: 'Password Reset Successful',
+      htmlContent,
+      textContent: `Your password has been successfully reset.`,
+    };
+
+    return this.sendEmail(emailData);
+  }
+
+  private generateForgotPasswordTemplate(resetData: any): string {
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Password Reset Request</title>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #e11d48; color: white; padding: 20px; text-align: center; }
+          .content { padding: 20px; background: #f9f9f9; }
+          .button { display: inline-block; padding: 10px 20px; background: #e11d48; color: white; text-decoration: none; border-radius: 5px; }
+          .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>Password Reset Request</h1>
+          </div>
+          <div class="content">
+            <p>Hello,</p>
+            <p>You have requested to reset your password. Click the button below to reset it.</p>
+            <p><a href="${resetData.resetUrl}" class="button">Reset Password</a></p>
+            <p>If you did not request this, please ignore this email.</p>
+            <p>Best regards,<br>InvicTask Team</p>
+          </div>
+          <div class="footer">
+            <p>This is an automated message from InvicTask.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+  
+  private generatePasswordResetTemplate(resetData: any): string {
+    return `    
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Password Reset Successful</title>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #059669; color: white; padding: 20px; text-align: center; }
+          .content { padding: 20px; background: #f9f9f9; }
+          .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>Password Reset Successful</h1>
+          </div>
+          <div class="content">
+            <p>Hello,</p>
+            <p>Your password has been successfully reset.</p>
+            <p>Best regards,<br>InvicTask Team</p>
+          </div>
+          <div class="footer">
+            <p>This is an automated message from InvicTask.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
   private generateEmailVerificationTemplate(verificationData: any): string {
     return `
       <!DOCTYPE html>

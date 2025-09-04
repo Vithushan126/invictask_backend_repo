@@ -34,8 +34,6 @@ export class NotificationService {
   async sendNotification(
     notificationData: CreateNotificationDto,
   ): Promise<NotificationDto[]> {
-    console.log('sendNotification', notificationData);
-
     const results: NotificationDto[] = [];
 
     // Get user preferences
@@ -204,7 +202,8 @@ export class NotificationService {
     notificationData: CreateNotificationDto,
   ): Promise<NotificationDto | null> {
     // This would typically get the user's email from a user service
-    const userEmail = `user-${notificationData.recipientId}@example.com`;
+    const userEmail = `${notificationData.email}`;
+    // const userEmail = `user-${notificationData.recipientId}@example.com`;
 
     try {
       let emailSent = false;
@@ -248,6 +247,7 @@ export class NotificationService {
           );
           this.logger.log(`Email verification sent successfully: ${emailSent}`);
           break;
+
         case NotificationType.EMAIL_VERIFICATION_SUCCESS:
           this.logger.log(`Sending welcome email to: ${userEmail}`);
           emailSent = await this.emailService.sendWelcomeEmail(
@@ -255,6 +255,20 @@ export class NotificationService {
             notificationData.data as any,
           );
           this.logger.log(`Welcome email sent successfully: ${emailSent}`);
+          break;
+
+        case NotificationType.FORGOT_PASSWORD:
+          emailSent = await this.emailService.sendForgotPasswordEmail(
+            userEmail,
+            notificationData.data as any,
+          );
+          break;
+
+        case NotificationType.PASSWORD_RESET:
+          emailSent = await this.emailService.sendPasswordResetEmail(
+            userEmail,
+            notificationData.data as any,
+          );
           break;
         // Add more email types as needed
       }

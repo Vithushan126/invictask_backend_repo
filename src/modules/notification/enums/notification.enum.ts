@@ -41,6 +41,8 @@ export enum NotificationType {
   ACCOUNT_SECURITY = 'account_security',
   ACCOUNT_SETTINGS_CHANGED = 'account_settings_changed',
   EMAIL_VERIFICATION_SUCCESS = 'email_verification_success',
+  FORGOT_PASSWORD = 'forgot_password',
+  PASSWORD_RESET = 'password_reset',
 
   // Workspace Related
   WORKSPACE_CREATED = 'workspace_created',

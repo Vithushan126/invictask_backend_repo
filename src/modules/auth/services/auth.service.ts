@@ -149,6 +149,7 @@ export class AuthService {
         message:
           'Please verify your email address to complete your registration.',
         recipientId: savedUser.id,
+        email: savedUser.email,
         channels: ['email'] as any,
         priority: 'high' as any,
         data: {
@@ -272,6 +273,8 @@ export class AuthService {
   async forgotPassword(
     forgotPasswordDto: ForgotPasswordDto,
   ): Promise<{ message: string }> {
+    console.log('forgotPasswordDto', forgotPasswordDto);
+
     const user = await this.userRepository.findOne({
       where: { email: forgotPasswordDto.email },
     });
@@ -295,17 +298,18 @@ export class AuthService {
 
     // Send reset email
     await this.notificationService.sendNotification({
-      type: NotificationType.ACCOUNT_SECURITY,
+      type: NotificationType.FORGOT_PASSWORD,
       title: 'Password Reset Request',
       message:
         'You have requested to reset your password. Click the link below to reset it.',
       recipientId: user.id,
+      email: user.email,
       channels: ['email'] as any,
       priority: 'high' as any,
       data: {
         userId: user.id,
         resetToken,
-        resetUrl: `${this.configService.get('FRONTEND_URL')}/reset-password?token=${resetToken}`,
+        resetUrl: `${this.configService.get('FRONTEND_URL')}/new-password?token=${resetToken}`,
         expiresAt: resetExpires,
         firstName: user.firstName,
       },
@@ -346,10 +350,11 @@ export class AuthService {
 
     // Send confirmation email
     await this.notificationService.sendNotification({
-      type: NotificationType.ACCOUNT_SECURITY,
+      type: NotificationType.PASSWORD_RESET,
       title: 'Password Reset Successful',
       message: 'Your password has been successfully reset.',
       recipientId: user.id,
+      email: user.email,
       channels: ['email'] as any,
       priority: 'medium' as any,
       data: {
@@ -388,6 +393,7 @@ export class AuthService {
       message:
         'Welcome to InvicTask! Your email has been verified and your account is now active.',
       recipientId: user.id,
+      email: user.email,
       channels: ['email'] as any,
       priority: 'medium' as any,
       data: {
