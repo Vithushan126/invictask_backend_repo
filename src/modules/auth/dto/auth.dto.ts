@@ -36,6 +36,10 @@ export class RegisterDto {
   @IsOptional()
   @IsString()
   organizationName?: string;
+
+  @IsOptional()
+  @IsEnum(UserRole)
+  role?: UserRole;
 }
 
 export class LoginDto {

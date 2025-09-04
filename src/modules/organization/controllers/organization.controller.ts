@@ -12,6 +12,7 @@ import {
   UploadedFile,
   HttpCode,
   HttpStatus,
+  Query,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { OrganizationService } from '../services/organization.service';
@@ -25,6 +26,9 @@ import {
   OrganizationResponseDto,
   OrganizationMemberResponseDto,
   OrganizationStatsDto,
+  SuperAdminOrganizationListDto,
+  SuperAdminOrganizationStatsDto,
+  SuperAdminUpdateOrganizationDto,
 } from '../dto/organization.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
@@ -38,6 +42,129 @@ export class OrganizationController {
     private readonly organizationService: OrganizationService,
     private readonly fileUploadService: FileUploadService,
   ) {}
+
+  // ==================== SUPER_ADMIN ENDPOINTS ====================
+
+  @Get('admin/all')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN)
+  async getAllOrganizations(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('search') search?: string,
+    @Query('status') status?: string,
+    @Query('plan') plan?: string,
+    @Query('sortBy') sortBy: string = 'createdAt',
+    @Query('sortOrder') sortOrder: 'ASC' | 'DESC' = 'DESC',
+  ): Promise<SuperAdminOrganizationListDto> {
+    return this.organizationService.getAllOrganizations({
+      page: Number(page),
+      limit: Number(limit),
+      search,
+      status,
+      plan,
+      sortBy,
+      sortOrder,
+    });
+  }
+
+  @Get('admin/stats')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN)
+  async getGlobalStats(): Promise<SuperAdminOrganizationStatsDto> {
+    return this.organizationService.getGlobalStats();
+  }
+
+  @Get('admin/:id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN)
+  async getOrganizationAsAdmin(
+    @Param('id') id: string,
+  ): Promise<OrganizationResponseDto> {
+    return this.organizationService.getOrganizationAsAdmin(id);
+  }
+
+  @Patch('admin/:id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN)
+  async updateOrganizationAsAdmin(
+    @Param('id') id: string,
+    @Body() updateDto: SuperAdminUpdateOrganizationDto,
+    @Request() req,
+  ): Promise<OrganizationResponseDto> {
+    return this.organizationService.updateOrganizationAsAdmin(
+      id,
+      updateDto,
+      req.user.id,
+    );
+  }
+
+  @Delete('admin/:id')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN)
+  async deleteOrganizationAsAdmin(
+    @Param('id') id: string,
+    @Request() req,
+  ): Promise<{ message: string }> {
+    return this.organizationService.deleteOrganizationAsAdmin(id, req.user.id);
+  }
+
+  @Post('admin/:id/suspend')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN)
+  async suspendOrganization(
+    @Param('id') id: string,
+    @Body() body: { reason?: string },
+    @Request() req,
+  ): Promise<{ message: string }> {
+    return this.organizationService.suspendOrganization(
+      id,
+      body.reason || '',
+      req.user.id,
+    );
+  }
+
+  @Post('admin/:id/activate')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN)
+  async activateOrganization(
+    @Param('id') id: string,
+    @Request() req,
+  ): Promise<{ message: string }> {
+    return this.organizationService.activateOrganization(id, req.user.id);
+  }
+
+  @Get('admin/:id/members')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN)
+  async getOrganizationMembersAsAdmin(
+    @Param('id') id: string,
+  ): Promise<OrganizationMemberResponseDto[]> {
+    return this.organizationService.getOrganizationMembersAsAdmin(id);
+  }
+
+  @Get('admin/:id/workspaces')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN)
+  async getOrganizationWorkspacesAsAdmin(@Param('id') id: string) {
+    return this.organizationService.getOrganizationWorkspacesAsAdmin(id);
+  }
+
+  @Get('admin/:id/activity')
+  @UseGuards(RolesGuard)
+  @Roles(UserRole.SUPER_ADMIN)
+  async getOrganizationActivityAsAdmin(
+    @Param('id') id: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 20,
+  ) {
+    return this.organizationService.getOrganizationActivityAsAdmin(id, {
+      page: Number(page),
+      limit: Number(limit),
+    });
+  }
+
+  // ==================== REGULAR USER ENDPOINTS ====================
 
   @Post()
   @HttpCode(HttpStatus.CREATED)

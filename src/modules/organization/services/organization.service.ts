@@ -23,7 +23,11 @@ import {
   WorkspaceRole,
 } from '../../../entities/workspace.entity';
 import { NotificationService } from '../../notification/services/notification.service';
-import { NotificationType } from '../../notification/enums/notification.enum';
+import {
+  NotificationType,
+  NotificationChannel,
+  NotificationPriority,
+} from '../../notification/enums/notification.enum';
 
 import {
   CreateOrganizationDto,
@@ -34,6 +38,11 @@ import {
   OrganizationMemberResponseDto,
   OrganizationInvitationResponseDto,
   OrganizationStatsDto,
+  SuperAdminOrganizationListDto,
+  SuperAdminOrganizationStatsDto,
+  SuperAdminUpdateOrganizationDto,
+  OrganizationActivityDto,
+  OrganizationWorkspaceDto,
 } from '../dto/organization.dto';
 
 @Injectable()
@@ -545,11 +554,11 @@ export class OrganizationService {
       memberCount: organization.memberCount,
       workspaceCount: organization.workspaceCount,
       owner: {
-        id: organization.owner.id,
-        firstName: organization.owner.firstName,
-        lastName: organization.owner.lastName,
-        email: organization.owner.email,
-        avatar: organization.owner.avatar,
+        id: organization.owner?.id || '',
+        firstName: organization.owner?.firstName || '',
+        lastName: organization.owner?.lastName || '',
+        email: organization.owner?.email || '',
+        avatar: organization.owner?.avatar || null,
       },
       settings: organization.settings,
       isActive: organization.isActive,
@@ -659,6 +668,473 @@ export class OrganizationService {
         slackIntegration: false,
       },
       customFields: [],
+    };
+  }
+
+  // ==================== SUPER_ADMIN METHODS ====================
+
+  async getAllOrganizations(options: {
+    page: number;
+    limit: number;
+    search?: string;
+    status?: string;
+    plan?: string;
+    sortBy: string;
+    sortOrder: 'ASC' | 'DESC';
+  }): Promise<SuperAdminOrganizationListDto> {
+    const { page, limit, search, status, plan, sortBy, sortOrder } = options;
+    const skip = (page - 1) * limit;
+
+    const queryBuilder = this.organizationRepository
+      .createQueryBuilder('organization')
+      .leftJoinAndSelect('organization.owner', 'owner')
+      .leftJoinAndSelect('organization.members', 'members')
+      .leftJoinAndSelect('members.user', 'user')
+      .leftJoinAndSelect('organization.workspaces', 'workspaces');
+
+    // Apply search filter
+    if (search) {
+      queryBuilder.where(
+        '(organization.name ILIKE :search OR organization.description ILIKE :search OR organization.industry ILIKE :search)',
+        { search: `%${search}%` },
+      );
+    }
+
+    // Apply status filter
+    if (status) {
+      if (status === 'active') {
+        queryBuilder.andWhere('organization.isActive = :isActive', {
+          isActive: true,
+        });
+      } else if (status === 'suspended') {
+        queryBuilder.andWhere('organization.isActive = :isActive', {
+          isActive: false,
+        });
+      }
+    }
+
+    // Apply plan filter
+    if (plan) {
+      queryBuilder.andWhere('organization.plan = :plan', { plan });
+    }
+
+    // Apply sorting
+    const validSortFields = [
+      'createdAt',
+      'updatedAt',
+      'name',
+      'memberCount',
+      'workspaceCount',
+    ];
+    const sortField = validSortFields.includes(sortBy) ? sortBy : 'createdAt';
+
+    if (sortField === 'memberCount') {
+      queryBuilder
+        .addSelect('COUNT(DISTINCT members.id)', 'memberCount')
+        .groupBy('organization.id')
+        .orderBy('memberCount', sortOrder);
+    } else if (sortField === 'workspaceCount') {
+      queryBuilder
+        .addSelect('COUNT(DISTINCT workspaces.id)', 'workspaceCount')
+        .groupBy('organization.id')
+        .orderBy('workspaceCount', sortOrder);
+    } else {
+      queryBuilder.orderBy(`organization.${sortField}`, sortOrder);
+    }
+
+    // Get total count
+    const totalQuery = queryBuilder.clone();
+    const total = await totalQuery.getCount();
+
+    // Apply pagination
+    const organizations = await queryBuilder.skip(skip).take(limit).getMany();
+
+    // Transform to response DTOs
+    const organizationDtos = await Promise.all(
+      organizations.map(async (org) => {
+        const memberCount = await this.organizationMemberRepository.count({
+          where: { organization: { id: org.id } },
+        });
+        const workspaceCount = await this.workspaceRepository.count({
+          where: { organization: { id: org.id } },
+        });
+
+        return {
+          ...this.mapToResponseDto(org),
+          memberCount,
+          workspaceCount,
+        };
+      }),
+    );
+
+    return {
+      organizations: organizationDtos,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  async getGlobalStats(): Promise<SuperAdminOrganizationStatsDto> {
+    const totalOrganizations = await this.organizationRepository.count();
+    const activeOrganizations = await this.organizationRepository.count({
+      where: { isActive: true },
+    });
+    const suspendedOrganizations = totalOrganizations - activeOrganizations;
+
+    const totalMembers = await this.organizationMemberRepository.count();
+    const totalWorkspaces = await this.workspaceRepository.count();
+
+    // Get plan distribution
+    const planDistribution = await this.organizationRepository
+      .createQueryBuilder('org')
+      .select('org.plan', 'plan')
+      .addSelect('COUNT(*)', 'count')
+      .groupBy('org.plan')
+      .getRawMany();
+
+    const planStats = planDistribution.reduce((acc, item) => {
+      acc[item.plan] = parseInt(item.count);
+      return acc;
+    }, {});
+
+    // Get recent organizations (last 10)
+    const recentOrganizations = await this.organizationRepository.find({
+      order: { createdAt: 'DESC' },
+      take: 10,
+      relations: ['members', 'members.user'],
+    });
+
+    // Get growth stats
+    const now = new Date();
+    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+
+    const organizationsThisMonth = await this.organizationRepository.count({
+      where: { createdAt: { $gte: thisMonthStart } as any },
+    });
+
+    const organizationsLastMonth = await this.organizationRepository.count({
+      where: {
+        createdAt: { $gte: lastMonthStart, $lte: lastMonthEnd } as any,
+      },
+    });
+
+    const membersThisMonth = await this.organizationMemberRepository.count({
+      where: { createdAt: { $gte: thisMonthStart } as any },
+    });
+
+    const membersLastMonth = await this.organizationMemberRepository.count({
+      where: {
+        createdAt: { $gte: lastMonthStart, $lte: lastMonthEnd } as any,
+      },
+    });
+
+    return {
+      totalOrganizations,
+      activeOrganizations,
+      suspendedOrganizations,
+      totalMembers,
+      totalWorkspaces,
+      totalProjects: 0, // Will be implemented when project module is ready
+      planDistribution: planStats,
+      recentOrganizations: recentOrganizations.map((org) =>
+        this.mapToResponseDto(org),
+      ),
+      growthStats: {
+        organizationsThisMonth,
+        organizationsLastMonth,
+        membersThisMonth,
+        membersLastMonth,
+      },
+    };
+  }
+
+  async getOrganizationAsAdmin(id: string): Promise<OrganizationResponseDto> {
+    const organization = await this.organizationRepository.findOne({
+      where: { id },
+      relations: ['owner', 'members', 'members.user', 'workspaces'],
+    });
+
+    if (!organization) {
+      throw new NotFoundException('Organization not found');
+    }
+
+    return this.mapToResponseDto(organization);
+  }
+
+  async updateOrganizationAsAdmin(
+    id: string,
+    updateDto: SuperAdminUpdateOrganizationDto,
+    adminId: string,
+  ): Promise<OrganizationResponseDto> {
+    const organization = await this.organizationRepository.findOne({
+      where: { id },
+      relations: ['owner'],
+    });
+
+    if (!organization) {
+      throw new NotFoundException('Organization not found');
+    }
+
+    // Update organization
+    Object.assign(organization, updateDto);
+    const updatedOrganization =
+      await this.organizationRepository.save(organization);
+
+    this.logger.log(
+      `Organization updated by SUPER_ADMIN: ${organization.name} by admin ${adminId}`,
+    );
+
+    // Send notification to organization owner if status changed
+    if (updateDto.isActive !== undefined) {
+      await this.notificationService.sendNotification({
+        type: NotificationType.SYSTEM_UPDATE,
+        title: updateDto.isActive
+          ? 'Organization Activated'
+          : 'Organization Suspended',
+        message: updateDto.isActive
+          ? 'Your organization has been activated by system administrator.'
+          : `Your organization has been suspended. ${updateDto.suspensionReason || 'Please contact support for more information.'}`,
+        recipientId: organization.ownerId,
+        channels: [NotificationChannel.EMAIL],
+        priority: NotificationPriority.HIGH,
+        data: {
+          organizationId: id,
+          organizationName: organization.name,
+          reason: updateDto.suspensionReason,
+        },
+      });
+    }
+
+    return this.mapToResponseDto(updatedOrganization);
+  }
+
+  async deleteOrganizationAsAdmin(
+    id: string,
+    adminId: string,
+  ): Promise<{ message: string }> {
+    const organization = await this.organizationRepository.findOne({
+      where: { id },
+      relations: ['members', 'workspaces'],
+    });
+
+    if (!organization) {
+      throw new NotFoundException('Organization not found');
+    }
+
+    // Soft delete - mark as inactive and archive
+    organization.isActive = false;
+    organization.suspensionReason = 'Deleted by system administrator';
+    await this.organizationRepository.save(organization);
+
+    // Archive all workspaces
+    if (organization.workspaces && organization.workspaces.length > 0) {
+      await this.workspaceRepository.update(
+        { organization: { id } },
+        { isArchived: true },
+      );
+    }
+
+    this.logger.log(
+      `Organization deleted by SUPER_ADMIN: ${organization.name} by admin ${adminId}`,
+    );
+
+    // Notify organization owner
+    await this.notificationService.sendNotification({
+      type: NotificationType.SYSTEM_UPDATE,
+      title: 'Organization Deleted',
+      message:
+        'Your organization has been deleted by system administrator. All data has been archived.',
+      recipientId: organization.ownerId,
+      channels: [NotificationChannel.EMAIL],
+      priority: NotificationPriority.HIGH,
+      data: {
+        organizationId: id,
+        organizationName: organization.name,
+      },
+    });
+
+    return { message: 'Organization deleted successfully' };
+  }
+
+  async suspendOrganization(
+    id: string,
+    reason: string,
+    adminId: string,
+  ): Promise<{ message: string }> {
+    const organization = await this.organizationRepository.findOne({
+      where: { id },
+    });
+
+    if (!organization) {
+      throw new NotFoundException('Organization not found');
+    }
+
+    organization.isActive = false;
+    organization.suspensionReason =
+      reason || 'Suspended by system administrator';
+    await this.organizationRepository.save(organization);
+
+    this.logger.log(
+      `Organization suspended by SUPER_ADMIN: ${organization.name} by admin ${adminId}`,
+    );
+
+    // Notify organization owner
+    await this.notificationService.sendNotification({
+      type: NotificationType.SYSTEM_UPDATE,
+      title: 'Organization Suspended',
+      message: `Your organization has been suspended. ${reason || 'Please contact support for more information.'}`,
+      recipientId: organization.ownerId,
+      channels: [NotificationChannel.EMAIL],
+      priority: NotificationPriority.HIGH,
+      data: {
+        organizationId: id,
+        organizationName: organization.name,
+        reason,
+      },
+    });
+
+    return { message: 'Organization suspended successfully' };
+  }
+
+  async activateOrganization(
+    id: string,
+    adminId: string,
+  ): Promise<{ message: string }> {
+    const organization = await this.organizationRepository.findOne({
+      where: { id },
+    });
+
+    if (!organization) {
+      throw new NotFoundException('Organization not found');
+    }
+
+    organization.isActive = true;
+    organization.suspensionReason = null;
+    await this.organizationRepository.save(organization);
+
+    this.logger.log(
+      `Organization activated by SUPER_ADMIN: ${organization.name} by admin ${adminId}`,
+    );
+
+    // Notify organization owner
+    await this.notificationService.sendNotification({
+      type: NotificationType.SYSTEM_UPDATE,
+      title: 'Organization Activated',
+      message:
+        'Your organization has been activated. You can now access all features.',
+      recipientId: organization.ownerId,
+      channels: [NotificationChannel.EMAIL],
+      priority: NotificationPriority.MEDIUM,
+      data: {
+        organizationId: id,
+        organizationName: organization.name,
+      },
+    });
+
+    return { message: 'Organization activated successfully' };
+  }
+
+  async getOrganizationMembersAsAdmin(
+    id: string,
+  ): Promise<OrganizationMemberResponseDto[]> {
+    const organization = await this.organizationRepository.findOne({
+      where: { id },
+    });
+
+    if (!organization) {
+      throw new NotFoundException('Organization not found');
+    }
+
+    const members = await this.organizationMemberRepository.find({
+      where: { organizationId: id, isActive: true },
+      relations: ['user', 'inviter'],
+      order: { joinedAt: 'ASC' },
+    });
+
+    return members.map((member) => this.mapMemberToResponseDto(member));
+  }
+
+  async getOrganizationWorkspacesAsAdmin(
+    id: string,
+  ): Promise<OrganizationWorkspaceDto[]> {
+    const organization = await this.organizationRepository.findOne({
+      where: { id },
+    });
+
+    if (!organization) {
+      throw new NotFoundException('Organization not found');
+    }
+
+    const workspaces = await this.workspaceRepository.find({
+      where: { organization: { id } },
+      relations: ['members', 'projects'],
+    });
+
+    return workspaces.map((workspace) => ({
+      id: workspace.id,
+      name: workspace.name,
+      description: workspace.description,
+      visibility: workspace.visibility,
+      memberCount: workspace.members?.length || 0,
+      projectCount: workspace.projects?.length || 0,
+      isArchived: workspace.isArchived,
+      createdAt: workspace.createdAt,
+      updatedAt: workspace.updatedAt,
+    }));
+  }
+
+  async getOrganizationActivityAsAdmin(
+    id: string,
+    options: { page: number; limit: number },
+  ): Promise<{
+    activities: OrganizationActivityDto[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    const organization = await this.organizationRepository.findOne({
+      where: { id },
+    });
+
+    if (!organization) {
+      throw new NotFoundException('Organization not found');
+    }
+
+    // This is a placeholder implementation
+    // In a real application, you would have an activity/audit log table
+    const activities: OrganizationActivityDto[] = [
+      {
+        id: '1',
+        action: 'organization_created',
+        description: 'Organization was created',
+        performedBy: {
+          id: organization.ownerId,
+          name: 'System',
+          email: 'system@invictask.com',
+        },
+        targetEntity: {
+          type: 'organization',
+          id: organization.id,
+          name: organization.name,
+        },
+        metadata: {},
+        createdAt: organization.createdAt,
+      },
+    ];
+
+    const { page, limit } = options;
+    const skip = (page - 1) * limit;
+    const paginatedActivities = activities.slice(skip, skip + limit);
+
+    return {
+      activities: paginatedActivities,
+      total: activities.length,
+      page,
+      limit,
     };
   }
 }

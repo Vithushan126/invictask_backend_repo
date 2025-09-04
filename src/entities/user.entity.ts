@@ -60,11 +60,13 @@ export class User {
   @Exclude()
   password: string;
 
-  @Column({
-    type: 'enum',
-    enum: UserRole,
-    default: UserRole.USER,
-  })
+  // @Column({
+  //   type: 'enum',
+  //   enum: UserRole,
+  //   default: UserRole.USER,
+  // })
+  // role: UserRole;
+  @Column({ type: 'varchar', default: 'USER' })
   role: UserRole;
 
   @Column({

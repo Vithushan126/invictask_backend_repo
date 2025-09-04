@@ -89,7 +89,11 @@ export class AuthService {
       emailVerificationToken: isSuperAdmin ? null : emailVerificationToken,
       isEmailVerified: isSuperAdmin ? true : false,
       emailVerifiedAt: isSuperAdmin ? new Date() : undefined,
-      role: isSuperAdmin ? UserRole.SUPER_ADMIN : UserRole.USER,
+      role: isSuperAdmin
+        ? UserRole.SUPER_ADMIN
+        : registerDto.role
+          ? UserRole.ADMIN
+          : UserRole.USER,
       preferences: this.getDefaultPreferences(),
     } as any);
 

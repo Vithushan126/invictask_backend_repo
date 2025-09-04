@@ -157,3 +157,100 @@ export class AcceptInvitationDto {
   @IsString()
   token: string;
 }
+
+// ==================== SUPER_ADMIN DTOs ====================
+
+export class SuperAdminUpdateOrganizationDto {
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
+  @IsString()
+  website?: string;
+
+  @IsOptional()
+  @IsString()
+  industry?: string;
+
+  @IsOptional()
+  @IsString()
+  size?: string;
+
+  @IsOptional()
+  @IsString()
+  logo?: string;
+
+  @IsOptional()
+  @IsEnum(OrganizationPlan)
+  plan?: OrganizationPlan;
+
+  @IsOptional()
+  @IsBoolean()
+  isActive?: boolean;
+
+  @IsOptional()
+  @IsString()
+  suspensionReason?: string;
+}
+
+export class SuperAdminOrganizationListDto {
+  organizations: OrganizationResponseDto[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export class SuperAdminOrganizationStatsDto {
+  totalOrganizations: number;
+  activeOrganizations: number;
+  suspendedOrganizations: number;
+  totalMembers: number;
+  totalWorkspaces: number;
+  totalProjects: number;
+  planDistribution: {
+    [key in OrganizationPlan]: number;
+  };
+  recentOrganizations: OrganizationResponseDto[];
+  growthStats: {
+    organizationsThisMonth: number;
+    organizationsLastMonth: number;
+    membersThisMonth: number;
+    membersLastMonth: number;
+  };
+}
+
+export class OrganizationActivityDto {
+  id: string;
+  action: string;
+  description: string;
+  performedBy: {
+    id: string;
+    name: string;
+    email: string;
+  };
+  targetEntity: {
+    type: string;
+    id: string;
+    name: string;
+  };
+  metadata: any;
+  createdAt: Date;
+}
+
+export class OrganizationWorkspaceDto {
+  id: string;
+  name: string;
+  description?: string;
+  visibility: string;
+  memberCount: number;
+  projectCount: number;
+  isArchived: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}

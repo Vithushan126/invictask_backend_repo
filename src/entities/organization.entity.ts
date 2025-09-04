@@ -100,6 +100,9 @@ export class Organization {
   @Column({ default: true })
   isActive: boolean;
 
+  @Column({ type: 'text', nullable: true })
+  suspensionReason?: string | null;
+
   @Column({ nullable: true })
   deletedAt: Date;
 
@@ -110,10 +113,10 @@ export class Organization {
   updatedAt: Date;
 
   // Relations
-  @OneToMany(() => OrganizationMember, member => member.organization)
+  @OneToMany(() => OrganizationMember, (member) => member.organization)
   members: OrganizationMember[];
 
-  @OneToMany(() => Workspace, workspace => workspace.organization)
+  @OneToMany(() => Workspace, (workspace) => workspace.organization)
   workspaces: Workspace[];
 
   // Virtual properties
@@ -144,7 +147,7 @@ export class OrganizationMember {
   @Column('uuid')
   organizationId: string;
 
-  @ManyToOne(() => Organization, org => org.members, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Organization, (org) => org.members, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'organizationId' })
   organization: Organization;
 
