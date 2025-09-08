@@ -270,6 +270,13 @@ export class NotificationService {
             notificationData.data as any,
           );
           break;
+          
+        case NotificationType.TEAM_INVITATION:
+          emailSent = await this.emailService.sendTeamInvitationEmail(
+            userEmail,
+            notificationData.data as any,
+          );
+          break;
         // Add more email types as needed
       }
 

@@ -7,7 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Between, MoreThanOrEqual, Repository } from 'typeorm';
 import * as crypto from 'crypto';
 
 import {
@@ -262,12 +262,20 @@ export class OrganizationService {
     const savedInvitation =
       await this.organizationInvitationRepository.save(invitation);
 
+    // Load the invitation with relations for the response
+    const invitationWithRelations =
+      await this.organizationInvitationRepository.findOne({
+        where: { id: savedInvitation.id },
+        relations: ['inviter', 'organization'],
+      });
+
     // Send invitation email
     await this.notificationService.sendNotification({
       type: NotificationType.TEAM_INVITATION,
       title: 'Organization Invitation',
       message: `You have been invited to join "${organization.name}" organization`,
       recipientId: 'email:' + inviteMemberDto.email, // Special format for email-only recipients
+      email: inviteMemberDto.email,
       senderId: inviterId,
       channels: ['email'] as any,
       priority: 'medium' as any,
@@ -285,7 +293,11 @@ export class OrganizationService {
       `Organization invitation sent: ${inviteMemberDto.email} to ${organization.name}`,
     );
 
-    return this.mapInvitationToResponseDto(savedInvitation);
+    if (!invitationWithRelations) {
+      throw new Error('Failed to load invitation with relations');
+    }
+
+    return this.mapInvitationToResponseDto(invitationWithRelations);
   }
 
   async acceptInvitation(
@@ -606,15 +618,19 @@ export class OrganizationService {
       isAccepted: invitation.isAccepted,
       expiresAt: invitation.expiresAt,
       createdAt: invitation.createdAt,
-      inviter: {
-        id: invitation.inviter.id,
-        firstName: invitation.inviter.firstName,
-        lastName: invitation.inviter.lastName,
-      },
-      organization: {
-        id: invitation.organization.id,
-        name: invitation.organization.name,
-      },
+      inviter: invitation.inviter
+        ? {
+            id: invitation.inviter.id,
+            firstName: invitation.inviter.firstName,
+            lastName: invitation.inviter.lastName,
+          }
+        : null,
+      organization: invitation.organization
+        ? {
+            id: invitation.organization.id,
+            name: invitation.organization.name,
+          }
+        : null,
     };
   }
 
@@ -813,22 +829,22 @@ export class OrganizationService {
     const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
 
     const organizationsThisMonth = await this.organizationRepository.count({
-      where: { createdAt: { $gte: thisMonthStart } as any },
+      where: { createdAt: MoreThanOrEqual(thisMonthStart) },
     });
 
     const organizationsLastMonth = await this.organizationRepository.count({
       where: {
-        createdAt: { $gte: lastMonthStart, $lte: lastMonthEnd } as any,
+        createdAt: Between(lastMonthStart, lastMonthEnd),
       },
     });
 
     const membersThisMonth = await this.organizationMemberRepository.count({
-      where: { createdAt: { $gte: thisMonthStart } as any },
+      where: { createdAt: MoreThanOrEqual(thisMonthStart) },
     });
 
     const membersLastMonth = await this.organizationMemberRepository.count({
       where: {
-        createdAt: { $gte: lastMonthStart, $lte: lastMonthEnd } as any,
+        createdAt: Between(lastMonthStart, lastMonthEnd),
       },
     });
 
@@ -920,7 +936,6 @@ export class OrganizationService {
       where: { id },
       relations: ['members', 'workspaces'],
     });
-
     if (!organization) {
       throw new NotFoundException('Organization not found');
     }
@@ -934,7 +949,11 @@ export class OrganizationService {
     if (organization.workspaces && organization.workspaces.length > 0) {
       await this.workspaceRepository.update(
         { organization: { id } },
-        { isArchived: true },
+        {
+          archivedAt: new Date(),
+          archivedBy: adminId,
+          isActive: false,
+        },
       );
     }
 

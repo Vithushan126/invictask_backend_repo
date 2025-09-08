@@ -13,6 +13,7 @@ import {
 } from 'typeorm';
 import { User } from './user.entity';
 import { Project } from './project.entity';
+import { List } from './list.entity';
 
 export enum TaskStatus {
   TODO = 'todo',
@@ -45,9 +46,16 @@ export class Task {
   @Column('uuid')
   projectId: string;
 
-  @ManyToOne(() => Project, project => project.tasks, { eager: true })
+  @ManyToOne(() => Project, (project) => project.tasks, { eager: true })
   @JoinColumn({ name: 'projectId' })
   project: Project;
+
+  @Column('uuid', { nullable: true })
+  listId: string;
+
+  @ManyToOne(() => List, (list) => list.tasks, { nullable: true })
+  @JoinColumn({ name: 'listId' })
+  list: List;
 
   @Column('uuid')
   createdBy: string;
@@ -98,11 +106,11 @@ export class Task {
   @Column('uuid', { nullable: true })
   parentTaskId: string;
 
-  @ManyToOne(() => Task, task => task.subtasks, { nullable: true })
+  @ManyToOne(() => Task, (task) => task.subtasks, { nullable: true })
   @JoinColumn({ name: 'parentTaskId' })
   parentTask: Task;
 
-  @OneToMany(() => Task, task => task.parentTask)
+  @OneToMany(() => Task, (task) => task.parentTask)
   subtasks: Task[];
 
   @Column({ type: 'jsonb', nullable: true })
@@ -137,16 +145,16 @@ export class Task {
   updatedAt: Date;
 
   // Relations
-  @OneToMany(() => TaskComment, comment => comment.task)
+  @OneToMany(() => TaskComment, (comment) => comment.task)
   comments: TaskComment[];
 
-  @OneToMany(() => TaskAttachment, attachment => attachment.task)
+  @OneToMany(() => TaskAttachment, (attachment) => attachment.task)
   attachments: TaskAttachment[];
 
-  @OneToMany(() => TaskTimeEntry, timeEntry => timeEntry.task)
+  @OneToMany(() => TaskTimeEntry, (timeEntry) => timeEntry.task)
   timeEntries: TaskTimeEntry[];
 
-  @OneToMany(() => TaskChecklist, checklist => checklist.task)
+  @OneToMany(() => TaskChecklist, (checklist) => checklist.task)
   checklists: TaskChecklist[];
 
   @ManyToMany(() => User)
@@ -167,7 +175,9 @@ export class Task {
 
   // Virtual properties
   get isOverdue(): boolean {
-    return this.dueDate ? new Date() > this.dueDate && this.status !== TaskStatus.DONE : false;
+    return this.dueDate
+      ? new Date() > this.dueDate && this.status !== TaskStatus.DONE
+      : false;
   }
 
   get isCompleted(): boolean {
@@ -200,7 +210,7 @@ export class TaskComment {
   @Column('uuid')
   taskId: string;
 
-  @ManyToOne(() => Task, task => task.comments, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Task, (task) => task.comments, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'taskId' })
   task: Task;
 
@@ -217,11 +227,13 @@ export class TaskComment {
   @Column('uuid', { nullable: true })
   parentCommentId: string;
 
-  @ManyToOne(() => TaskComment, comment => comment.replies, { nullable: true })
+  @ManyToOne(() => TaskComment, (comment) => comment.replies, {
+    nullable: true,
+  })
   @JoinColumn({ name: 'parentCommentId' })
   parentComment: TaskComment;
 
-  @OneToMany(() => TaskComment, comment => comment.parentComment)
+  @OneToMany(() => TaskComment, (comment) => comment.parentComment)
   replies: TaskComment[];
 
   @Column({ type: 'simple-array', nullable: true })
@@ -242,7 +254,7 @@ export class TaskComment {
   @UpdateDateColumn()
   updatedAt: Date;
 
-  @OneToMany(() => TaskCommentAttachment, attachment => attachment.comment)
+  @OneToMany(() => TaskCommentAttachment, (attachment) => attachment.comment)
   attachments: TaskCommentAttachment[];
 }
 
@@ -255,7 +267,9 @@ export class TaskCommentAttachment {
   @Column('uuid')
   commentId: string;
 
-  @ManyToOne(() => TaskComment, comment => comment.attachments, { onDelete: 'CASCADE' })
+  @ManyToOne(() => TaskComment, (comment) => comment.attachments, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'commentId' })
   comment: TaskComment;
 
@@ -290,7 +304,7 @@ export class TaskAttachment {
   @Column('uuid')
   taskId: string;
 
-  @ManyToOne(() => Task, task => task.attachments, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Task, (task) => task.attachments, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'taskId' })
   task: Task;
 
@@ -341,7 +355,7 @@ export class TaskTimeEntry {
   @Column('uuid')
   taskId: string;
 
-  @ManyToOne(() => Task, task => task.timeEntries, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Task, (task) => task.timeEntries, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'taskId' })
   task: Task;
 
@@ -393,7 +407,7 @@ export class TaskChecklist {
   @Column('uuid')
   taskId: string;
 
-  @ManyToOne(() => Task, task => task.checklists, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Task, (task) => task.checklists, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'taskId' })
   task: Task;
 
@@ -409,7 +423,7 @@ export class TaskChecklist {
   @UpdateDateColumn()
   updatedAt: Date;
 
-  @OneToMany(() => TaskChecklistItem, item => item.checklist)
+  @OneToMany(() => TaskChecklistItem, (item) => item.checklist)
   items: TaskChecklistItem[];
 }
 
@@ -422,7 +436,9 @@ export class TaskChecklistItem {
   @Column('uuid')
   checklistId: string;
 
-  @ManyToOne(() => TaskChecklist, checklist => checklist.items, { onDelete: 'CASCADE' })
+  @ManyToOne(() => TaskChecklist, (checklist) => checklist.items, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'checklistId' })
   checklist: TaskChecklist;
 

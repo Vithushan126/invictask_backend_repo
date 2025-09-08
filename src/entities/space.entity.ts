@@ -10,17 +10,22 @@ import {
   Index,
 } from 'typeorm';
 import { User } from './user.entity';
-import { Organization } from './organization.entity';
-import { Space } from './space.entity';
+import { Workspace } from './workspace.entity';
 
-export enum WorkspaceVisibility {
+export enum SpaceVisibility {
   PRIVATE = 'private',
-  INTERNAL = 'internal', // Visible to all organization members
+  INTERNAL = 'internal',
   PUBLIC = 'public',
 }
 
-@Entity('workspaces')
-export class Workspace {
+export enum SpaceStatus {
+  ACTIVE = 'active',
+  ARCHIVED = 'archived',
+  TEMPLATE = 'template',
+}
+
+@Entity('spaces')
+export class Space {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
@@ -35,17 +40,20 @@ export class Workspace {
   description: string;
 
   @Column({ nullable: true })
-  avatar: string;
+  color: string;
 
   @Column({ nullable: true })
-  coverImage: string;
+  icon: string;
+
+  @Column({ nullable: true })
+  avatar: string;
 
   @Column('uuid')
-  organizationId: string;
+  workspaceId: string;
 
-  @ManyToOne(() => Organization, (org) => org.workspaces, { eager: true })
-  @JoinColumn({ name: 'organizationId' })
-  organization: Organization;
+  @ManyToOne(() => Workspace, (workspace) => workspace.spaces, { eager: true })
+  @JoinColumn({ name: 'workspaceId' })
+  workspace: Workspace;
 
   @Column('uuid')
   ownerId: string;
@@ -56,27 +64,37 @@ export class Workspace {
 
   @Column({
     type: 'enum',
-    enum: WorkspaceVisibility,
-    default: WorkspaceVisibility.PRIVATE,
+    enum: SpaceVisibility,
+    default: SpaceVisibility.PRIVATE,
   })
-  visibility: WorkspaceVisibility;
+  visibility: SpaceVisibility;
+
+  @Column({
+    type: 'enum',
+    enum: SpaceStatus,
+    default: SpaceStatus.ACTIVE,
+  })
+  status: SpaceStatus;
 
   @Column({ type: 'jsonb', nullable: true })
   settings: {
-    allowGuestAccess: boolean;
-    defaultProjectVisibility: 'private' | 'internal' | 'public';
     features: {
       timeTracking: boolean;
       customFields: boolean;
       goals: boolean;
-      portfolios: boolean;
-      dashboards: boolean;
+      milestones: boolean;
+      dependencies: boolean;
       automations: boolean;
     };
     permissions: {
-      whoCanCreateProjects: 'admins' | 'members' | 'everyone';
-      whoCanInviteMembers: 'admins' | 'members' | 'everyone';
+      whoCanCreateFolders: 'admins' | 'members' | 'everyone';
+      whoCanEditSpace: 'admins' | 'members';
       whoCanDeleteTasks: 'admins' | 'members' | 'task_creators';
+      whoCanInviteMembers: 'admins' | 'members';
+    };
+    views: {
+      defaultView: 'list' | 'board' | 'gantt' | 'calendar';
+      enabledViews: string[];
     };
     notifications: {
       emailDigest: boolean;
@@ -103,11 +121,14 @@ export class Workspace {
   @Column({ default: true })
   isActive: boolean;
 
-  @Column({ nullable: true })
-  archivedAt: Date;
+  @Column({ type: 'timestamp', nullable: true })
+  archivedAt: Date | null;
 
   @Column('uuid', { nullable: true })
-  archivedBy: string;
+  archivedBy: string | null;
+
+  @Column({ type: 'int', default: 0 })
+  sortOrder: number;
 
   @CreateDateColumn()
   createdAt: Date;
@@ -116,22 +137,12 @@ export class Workspace {
   updatedAt: Date;
 
   // Relations
-  @OneToMany(() => WorkspaceMember, (member) => member.workspace)
-  members: WorkspaceMember[];
-
-  @OneToMany(() => Project, (project) => project.workspace)
-  projects: Project[];
-
-  @OneToMany(() => Space, (space) => space.workspace)
-  spaces: Space[];
+  @OneToMany(() => SpaceMember, (member) => member.space)
+  members: SpaceMember[];
 
   // Virtual properties
   get memberCount(): number {
     return this.members?.length || 0;
-  }
-
-  get projectCount(): number {
-    return this.projects?.length || 0;
   }
 
   get isArchived(): boolean {
@@ -139,27 +150,24 @@ export class Workspace {
   }
 }
 
-// Workspace Member Entity
-export enum WorkspaceRole {
+// Space Member Entity
+export enum SpaceRole {
   ADMIN = 'admin',
   MEMBER = 'member',
   GUEST = 'guest',
 }
 
-@Entity('workspace_members')
-@Index(['workspaceId', 'userId'], { unique: true })
-export class WorkspaceMember {
+@Entity('space_members')
+export class SpaceMember {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
   @Column('uuid')
-  workspaceId: string;
+  spaceId: string;
 
-  @ManyToOne(() => Workspace, (workspace) => workspace.members, {
-    onDelete: 'CASCADE',
-  })
-  @JoinColumn({ name: 'workspaceId' })
-  workspace: Workspace;
+  @ManyToOne(() => Space, (space) => space.members)
+  @JoinColumn({ name: 'spaceId' })
+  space: Space;
 
   @Column('uuid')
   userId: string;
@@ -170,10 +178,10 @@ export class WorkspaceMember {
 
   @Column({
     type: 'enum',
-    enum: WorkspaceRole,
-    default: WorkspaceRole.MEMBER,
+    enum: SpaceRole,
+    default: SpaceRole.MEMBER,
   })
-  role: WorkspaceRole;
+  role: SpaceRole;
 
   @Column({ type: 'simple-array', nullable: true })
   permissions: string[];
@@ -204,28 +212,28 @@ export class WorkspaceMember {
   updatedAt: Date;
 }
 
-// Workspace Invitation Entity
-@Entity('workspace_invitations')
-export class WorkspaceInvitation {
+// Space Invitation Entity
+@Entity('space_invitations')
+export class SpaceInvitation {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
   @Column('uuid')
-  workspaceId: string;
+  spaceId: string;
 
-  @ManyToOne(() => Workspace, { onDelete: 'CASCADE' })
-  @JoinColumn({ name: 'workspaceId' })
-  workspace: Workspace;
+  @ManyToOne(() => Space)
+  @JoinColumn({ name: 'spaceId' })
+  space: Space;
 
   @Column()
   email: string;
 
   @Column({
     type: 'enum',
-    enum: WorkspaceRole,
-    default: WorkspaceRole.MEMBER,
+    enum: SpaceRole,
+    default: SpaceRole.MEMBER,
   })
-  role: WorkspaceRole;
+  role: SpaceRole;
 
   @Column('uuid')
   invitedBy: string;
@@ -258,6 +266,3 @@ export class WorkspaceInvitation {
   @UpdateDateColumn()
   updatedAt: Date;
 }
-
-// Import Project here to avoid circular dependency
-import { Project } from './project.entity';

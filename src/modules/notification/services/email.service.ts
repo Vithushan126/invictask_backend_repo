@@ -444,6 +444,61 @@ export class EmailService {
     return this.sendEmail(emailData);
   }
 
+  async sendTeamInvitationEmail(
+    recipientEmail: string,
+    invitationData: any,
+  ): Promise<boolean> {
+    console.log('invitationData', invitationData);
+    console.log('recipientEmail', recipientEmail);
+
+    const htmlContent = this.generateTeamInvitationTemplate(invitationData);
+
+    const emailData: EmailNotificationDto = {
+      to: recipientEmail,
+      subject: 'You have been invited to join a team',
+      htmlContent,
+      textContent: `You have been invited to join a team. Click the link below to accept the invitation: ${invitationData.inviteUrl}`,
+    };
+
+    return this.sendEmail(emailData);
+  }
+
+  private generateTeamInvitationTemplate(invitationData: any): string {
+    return `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <title>Team Invitation</title>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #059669; color: white; padding: 20px; text-align: center; }
+          .content { padding: 20px; background: #f9f9f9; }
+          .button { display: inline-block; padding: 10px 20px; background: #059669; color: white; text-decoration: none; border-radius: 5px; }
+          .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>Team Invitation</h1>
+          </div>
+          <div class="content">
+            <p>Hello,</p>
+            <p>You have been invited to join a team by <strong>${invitationData.inviterName}</strong>!</p>
+            <p><a href="${invitationData.inviteUrl}" class="button">Accept Invitation</a></p>
+            <p>Best regards,<br>InvicTask Team</p>
+          </div>
+          <div class="footer">
+            <p>This invitation was sent by ${invitationData.inviterName} via InvicTask.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `;
+  }
+
   private generateForgotPasswordTemplate(resetData: any): string {
     return `
       <!DOCTYPE html>
@@ -480,7 +535,7 @@ export class EmailService {
       </html>
     `;
   }
-  
+
   private generatePasswordResetTemplate(resetData: any): string {
     return `    
       <!DOCTYPE html>

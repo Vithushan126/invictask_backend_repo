@@ -34,7 +34,15 @@ import { OrganizationModule } from './modules/organization/organization.module';
 import { FileUploadModule } from './modules/file-upload/file-upload.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { WorkspaceModule } from './modules/workspace/workspace.module';
+import { SpaceModule } from './modules/space/space.module';
 import { DatabaseModule } from './database/database.module';
+import { Space, SpaceMember, SpaceInvitation } from './entities/space.entity';
+import { List, ListTemplate } from './entities/list.entity';
+import {
+  Folder,
+  FolderMember,
+  FolderMilestone,
+} from './entities/folder.entity';
 
 @Module({
   imports: [
@@ -62,14 +70,23 @@ import { DatabaseModule } from './database/database.module';
           Project,
           ProjectMember,
           ProjectFile,
-          Task,
           TaskComment,
           TaskAttachment,
           TaskTimeEntry,
           TaskChecklist,
           TaskChecklistItem,
           TaskCommentAttachment,
+          Space,
+          SpaceMember,
+          SpaceInvitation,
+          Folder,
+          List,
+          ListTemplate,
+          Task,
+          FolderMember,
+          FolderMilestone,
         ],
+
         synchronize: configService.get('DB_SYNCHRONIZE') === 'true',
         logging: configService.get('DB_LOGGING') === 'true',
         ssl:
@@ -85,6 +102,7 @@ import { DatabaseModule } from './database/database.module';
     UserModule,
     OrganizationModule,
     WorkspaceModule,
+    SpaceModule,
     FileUploadModule,
     NotificationModule,
   ],

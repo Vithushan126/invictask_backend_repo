@@ -137,11 +137,11 @@ export class OrganizationInvitationResponseDto {
     id: string;
     firstName: string;
     lastName: string;
-  };
+  } | null;
   organization: {
     id: string;
     name: string;
-  };
+  } | null;
 }
 
 export class OrganizationStatsDto {

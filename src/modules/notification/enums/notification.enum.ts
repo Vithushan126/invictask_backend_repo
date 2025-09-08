@@ -50,6 +50,9 @@ export enum NotificationType {
   WORKSPACE_MEMBER_ADDED = 'workspace_member_added',
   WORKSPACE_MEMBER_REMOVED = 'workspace_member_removed',
 
+  //Space Related
+  SPACE_MEMBER_ADDED = 'space_member_added',
+
   // Time Tracking
   TIME_TRACKED = 'time_tracked',
   TIME_GOAL_REACHED = 'time_goal_reached',
@@ -123,3 +126,5 @@ export enum EmailTemplate {
   WELCOME = 'welcome',
   PASSWORD_RESET = 'password_reset',
 }
+
+
