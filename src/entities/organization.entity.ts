@@ -249,5 +249,68 @@ export class OrganizationInvitation {
   updatedAt: Date;
 }
 
+// Internal Invitation Entity (for existing platform users)
+@Entity('internal_invitations')
+export class InternalInvitation {
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @Column('uuid')
+  organizationId: string;
+
+  @ManyToOne(() => Organization, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'organizationId' })
+  organization: Organization;
+
+  @Column('uuid')
+  userId: string; // Existing platform user
+
+  @ManyToOne(() => User, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'userId' })
+  user: User;
+
+  @Column({
+    type: 'enum',
+    enum: OrganizationRole,
+    default: OrganizationRole.MEMBER,
+  })
+  role: OrganizationRole;
+
+  @Column('uuid')
+  invitedBy: string;
+
+  @ManyToOne(() => User)
+  @JoinColumn({ name: 'invitedBy' })
+  inviter: User;
+
+  @Column({ nullable: true })
+  message: string;
+
+  @Column({ nullable: true })
+  workspaceId: string;
+
+  @Column({ type: 'timestamp' })
+  expiresAt: Date;
+
+  @Column({
+    type: 'enum',
+    enum: ['pending', 'accepted', 'declined'],
+    default: 'pending',
+  })
+  status: 'pending' | 'accepted' | 'declined';
+
+  @Column({ type: 'timestamp', nullable: true })
+  respondedAt: Date;
+
+  @Column({ type: 'text', nullable: true })
+  declineReason: string | null;
+
+  @CreateDateColumn()
+  createdAt: Date;
+
+  @UpdateDateColumn()
+  updatedAt: Date;
+}
+
 // Import Workspace here to avoid circular dependency
 import { Workspace } from './workspace.entity';

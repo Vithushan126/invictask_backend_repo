@@ -24,6 +24,17 @@ export enum NotificationType {
   PROJECT_ROLE_CHANGED = 'project_role_changed',
   PROJECT_DEADLINE_APPROACHING = 'project_deadline_approaching',
 
+  // Organization Related
+  ORGANIZATION_INVITATION = 'organization_invitation',
+  ORGANIZATION_INVITATION_ACCEPTED = 'organization_invitation_accepted',
+  ORGANIZATION_INVITATION_DECLINED = 'organization_invitation_declined',
+  ORGANIZATION_MEMBER_JOINED = 'organization_member_joined',
+  ORGANIZATION_MEMBER_LEFT = 'organization_member_left',
+  ORGANIZATION_ROLE_UPDATED = 'organization_role_updated',
+  INTERNAL_INVITATION = 'internal_invitation',
+  INTERNAL_INVITATION_ACCEPTED = 'internal_invitation_accepted',
+  INTERNAL_INVITATION_DECLINED = 'internal_invitation_declined',
+
   // Team Related
   TEAM_INVITATION = 'team_invitation',
   TEAM_MEMBER_JOINED = 'team_member_joined',
@@ -119,6 +130,10 @@ export enum EmailTemplate {
   TASK_DUE_REMINDER = 'task_due_reminder',
   PROJECT_INVITATION = 'project_invitation',
   TEAM_INVITATION = 'team_invitation',
+  ORGANIZATION_INVITATION = 'organization_invitation',
+  INTERNAL_INVITATION = 'internal_invitation',
+  INVITATION_ACCEPTED = 'invitation_accepted',
+  INVITATION_DECLINED = 'invitation_declined',
   WEEKLY_SUMMARY = 'weekly_summary',
   COMMENT_MENTION = 'comment_mention',
   TASK_COMPLETED = 'task_completed',
@@ -126,5 +141,3 @@ export enum EmailTemplate {
   WELCOME = 'welcome',
   PASSWORD_RESET = 'password_reset',
 }
-
-

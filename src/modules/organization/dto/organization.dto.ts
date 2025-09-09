@@ -71,6 +71,87 @@ export class InviteMemberDto {
   @IsOptional()
   @IsString()
   message?: string;
+
+  @IsOptional()
+  @IsString()
+  pricingPlan?: string; // Optional: pricing plan information (free, pro, enterprise)
+
+  @IsOptional()
+  @IsString()
+  planFeatures?: string; // Optional: plan features description
+}
+
+// ==================== ENHANCED INVITATION DTOS ====================
+
+export class InviteMultipleMembersDto {
+  @IsArray()
+  @IsEmail({}, { each: true })
+  emails: string[];
+
+  @IsEnum(OrganizationRole)
+  role: OrganizationRole;
+
+  @IsOptional()
+  @IsString()
+  message?: string;
+
+  @IsOptional()
+  @IsString()
+  workspaceId?: string; // Optional: invite to specific workspace
+
+  @IsOptional()
+  @IsString()
+  pricingPlan?: string; // Optional: pricing plan information (free, pro, enterprise)
+
+  @IsOptional()
+  @IsString()
+  planFeatures?: string; // Optional: plan features description
+}
+
+export class InternalInviteDto {
+  @IsString()
+  userId: string; // Existing platform user ID
+
+  @IsEnum(OrganizationRole)
+  role: OrganizationRole;
+
+  @IsOptional()
+  @IsString()
+  message?: string;
+
+  @IsOptional()
+  @IsString()
+  workspaceId?: string;
+}
+
+export class AcceptInvitationWithAccountDto {
+  @IsString()
+  token: string;
+
+  @IsString()
+  firstName: string;
+
+  @IsString()
+  lastName: string;
+
+  @IsEmail()
+  email: string;
+
+  @IsString()
+  password: string;
+
+  @IsOptional()
+  @IsString()
+  displayName?: string;
+}
+
+export class DeclineInvitationDto {
+  @IsString()
+  token: string;
+
+  @IsOptional()
+  @IsString()
+  reason?: string;
 }
 
 export class UpdateMemberRoleDto {
@@ -142,6 +223,64 @@ export class OrganizationInvitationResponseDto {
     id: string;
     name: string;
   } | null;
+}
+
+// ==================== ENHANCED INVITATION RESPONSE DTOS ====================
+
+export class MultipleInvitationResponseDto {
+  invitations: OrganizationInvitationResponseDto[];
+  message: string;
+  summary: {
+    total: number;
+    successful: number;
+    failed: number;
+    errors: string[];
+  };
+}
+
+export class InternalInvitationResponseDto {
+  id: string;
+  userId: string;
+  role: OrganizationRole;
+  message?: string;
+  status: 'pending' | 'accepted' | 'declined';
+  createdAt: Date;
+  expiresAt: Date;
+  inviter: {
+    id: string;
+    firstName: string;
+    lastName: string;
+  } | null;
+  organization: {
+    id: string;
+    name: string;
+  } | null;
+  user: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  } | null;
+}
+
+export class AcceptInvitationResponseDto {
+  success: boolean;
+  message: string;
+  user?: {
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  };
+  organization: {
+    id: string;
+    name: string;
+  };
+  membership: {
+    id: string;
+    role: OrganizationRole;
+    joinedAt: Date;
+  };
 }
 
 export class OrganizationStatsDto {

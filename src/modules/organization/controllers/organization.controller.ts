@@ -21,10 +21,17 @@ import {
   CreateOrganizationDto,
   UpdateOrganizationDto,
   InviteMemberDto,
+  InviteMultipleMembersDto,
+  InternalInviteDto,
+  AcceptInvitationWithAccountDto,
+  DeclineInvitationDto,
   UpdateMemberRoleDto,
   AcceptInvitationDto,
   OrganizationResponseDto,
   OrganizationMemberResponseDto,
+  MultipleInvitationResponseDto,
+  InternalInvitationResponseDto,
+  AcceptInvitationResponseDto,
   OrganizationStatsDto,
   SuperAdminOrganizationListDto,
   SuperAdminOrganizationStatsDto,
@@ -34,6 +41,7 @@ import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
 import { Roles } from '../../auth/decorators/roles.decorator';
 import { UserRole } from '../../../entities/user.entity';
+import { Public } from 'src/modules/auth/decorators/public.decorator';
 
 @Controller('organizations')
 @UseGuards(JwtAuthGuard)
@@ -224,6 +232,67 @@ export class OrganizationController {
     return this.organizationService.acceptInvitation(
       acceptInvitationDto.token,
       req.user.id,
+    );
+  }
+
+  // ==================== ENHANCED INVITATION ENDPOINTS ====================
+
+  @Post(':id/invite-multiple')
+  async inviteMultipleMembers(
+    @Param('id') id: string,
+    @Body() inviteDto: InviteMultipleMembersDto,
+    @Request() req,
+  ): Promise<MultipleInvitationResponseDto> {
+    return this.organizationService.inviteMultipleMembers(
+      id,
+      inviteDto,
+      req.user.id,
+    );
+  }
+
+  @Post(':id/invite-internal')
+  async inviteInternalUser(
+    @Param('id') id: string,
+    @Body() inviteDto: InternalInviteDto,
+    @Request() req,
+  ): Promise<InternalInvitationResponseDto> {
+    return this.organizationService.inviteInternalUser(
+      id,
+      inviteDto,
+      req.user.id,
+    );
+  }
+
+  @Post('accept-invitation-with-account')
+  @Public()
+  @HttpCode(HttpStatus.OK)
+  async acceptInvitationWithAccount(
+    @Body() acceptDto: AcceptInvitationWithAccountDto,
+  ): Promise<AcceptInvitationResponseDto> {
+    return this.organizationService.acceptInvitationWithAccount(acceptDto);
+  }
+
+  @Post('internal-invitations/:invitationId/accept')
+  async acceptInternalInvitation(
+    @Param('invitationId') invitationId: string,
+    @Request() req,
+  ): Promise<AcceptInvitationResponseDto> {
+    return this.organizationService.acceptInternalInvitation(
+      invitationId,
+      req.user.id,
+    );
+  }
+
+  @Post('internal-invitations/:invitationId/decline')
+  async declineInternalInvitation(
+    @Param('invitationId') invitationId: string,
+    @Body() declineDto: DeclineInvitationDto,
+    @Request() req,
+  ): Promise<{ message: string }> {
+    return this.organizationService.declineInternalInvitation(
+      invitationId,
+      req.user.id,
+      declineDto,
     );
   }
 

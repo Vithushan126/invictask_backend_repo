@@ -14,6 +14,7 @@ import {
   Organization,
   OrganizationMember,
   OrganizationInvitation,
+  InternalInvitation,
   OrganizationRole,
 } from '../../../entities/organization.entity';
 import { User } from '../../../entities/user.entity';
@@ -33,10 +34,17 @@ import {
   CreateOrganizationDto,
   UpdateOrganizationDto,
   InviteMemberDto,
+  InviteMultipleMembersDto,
+  InternalInviteDto,
+  AcceptInvitationWithAccountDto,
+  DeclineInvitationDto,
   UpdateMemberRoleDto,
   OrganizationResponseDto,
   OrganizationMemberResponseDto,
   OrganizationInvitationResponseDto,
+  MultipleInvitationResponseDto,
+  InternalInvitationResponseDto,
+  AcceptInvitationResponseDto,
   OrganizationStatsDto,
   SuperAdminOrganizationListDto,
   SuperAdminOrganizationStatsDto,
@@ -56,6 +64,8 @@ export class OrganizationService {
     private readonly organizationMemberRepository: Repository<OrganizationMember>,
     @InjectRepository(OrganizationInvitation)
     private readonly organizationInvitationRepository: Repository<OrganizationInvitation>,
+    @InjectRepository(InternalInvitation)
+    private readonly internalInvitationRepository: Repository<InternalInvitation>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
     @InjectRepository(Workspace)
@@ -286,6 +296,8 @@ export class OrganizationService {
         inviteMessage: inviteMemberDto.message,
         inviteUrl: `${process.env.FRONTEND_URL}/accept-invitation?token=${token}`,
         expiresAt,
+        pricingPlan: inviteMemberDto.pricingPlan || 'free',
+        planFeatures: inviteMemberDto.planFeatures || 'Basic features included',
       },
     });
 
@@ -379,6 +391,267 @@ export class OrganizationService {
     );
 
     return { message: 'Successfully joined organization' };
+  }
+
+  // ==================== ENHANCED INVITATION METHODS ====================
+
+  async inviteMultipleMembers(
+    organizationId: string,
+    inviteDto: InviteMultipleMembersDto,
+    inviterId: string,
+  ): Promise<MultipleInvitationResponseDto> {
+    this.logger.log(
+      `Starting bulk invitation process for organization ${organizationId} with ${inviteDto.emails.length} emails`,
+    );
+
+    const organization = await this.organizationRepository.findOne({
+      where: { id: organizationId },
+    });
+
+    if (!organization) {
+      throw new NotFoundException('Organization not found');
+    }
+
+    // Check if inviter has permission
+    await this.checkPermissions(organizationId, inviterId, [
+      OrganizationRole.OWNER,
+      OrganizationRole.ADMIN,
+    ]);
+
+    const inviter = await this.userRepository.findOne({
+      where: { id: inviterId },
+    });
+
+    if (!inviter) {
+      throw new NotFoundException('Inviter not found');
+    }
+
+    const invitations: OrganizationInvitationResponseDto[] = [];
+    const errors: string[] = [];
+    const emailNotificationPromises: Promise<void>[] = [];
+
+    this.logger.log(
+      `Processing ${inviteDto.emails.length} email invitations...`,
+    );
+
+    for (const email of inviteDto.emails) {
+      try {
+        this.logger.debug(`Processing invitation for: ${email}`);
+
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(email)) {
+          errors.push(`${email} is not a valid email address`);
+          continue;
+        }
+
+        // Check if user is already a member
+        const existingMember = await this.organizationMemberRepository.findOne({
+          where: { organizationId, user: { email } },
+          relations: ['user'],
+        });
+
+        if (existingMember) {
+          errors.push(`${email} is already a member of this organization`);
+          continue;
+        }
+
+        // Check if there's already a pending invitation
+        const existingInvitation =
+          await this.organizationInvitationRepository.findOne({
+            where: { organizationId, email, isAccepted: false },
+          });
+
+        if (existingInvitation) {
+          errors.push(`${email} already has a pending invitation`);
+          continue;
+        }
+
+        // Create invitation
+        const token = crypto.randomBytes(32).toString('hex');
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
+
+        const invitation = this.organizationInvitationRepository.create({
+          organizationId,
+          email,
+          role: inviteDto.role,
+          invitedBy: inviterId,
+          token,
+          message: inviteDto.message,
+          expiresAt,
+        });
+
+        const savedInvitation =
+          await this.organizationInvitationRepository.save(invitation);
+
+        this.logger.debug(
+          `Invitation created for ${email} with ID: ${savedInvitation.id}`,
+        );
+
+        // Load with relations
+        const invitationWithRelations =
+          await this.organizationInvitationRepository.findOne({
+            where: { id: savedInvitation.id },
+            relations: ['inviter', 'organization'],
+          });
+
+        if (invitationWithRelations) {
+          invitations.push(
+            this.mapInvitationToResponseDto(invitationWithRelations),
+          );
+
+          // Create email notification promise (non-blocking)
+          const emailPromise = this.sendExternalInvitationNotification(
+            email,
+            organization,
+            inviter,
+            invitation,
+            inviteDto,
+          ).catch((emailError) => {
+            this.logger.error(`Failed to send email to ${email}:`, emailError);
+            // Don't add to errors array as invitation was created successfully
+          });
+
+          emailNotificationPromises.push(emailPromise);
+        } else {
+          errors.push(`Failed to load invitation details for ${email}`);
+        }
+      } catch (error) {
+        this.logger.error(`Failed to process invitation for ${email}:`, error);
+        errors.push(`Failed to invite ${email}: ${error.message}`);
+      }
+    }
+
+    // Wait for all email notifications to complete (with timeout)
+    try {
+      this.logger.log(
+        `Sending ${emailNotificationPromises.length} invitation emails...`,
+      );
+      await Promise.allSettled(emailNotificationPromises);
+      this.logger.log('All invitation emails processed');
+    } catch (error) {
+      this.logger.error('Error in email notification batch:', error);
+    }
+
+    this.logger.log(
+      `Bulk invitation sent: ${invitations.length} successful, ${errors.length} failed for organization ${organization.name}`,
+    );
+
+    const summary = {
+      total: inviteDto.emails.length,
+      successful: invitations.length,
+      failed: errors.length,
+      errors,
+    };
+
+    return {
+      invitations,
+      message: `${invitations.length} invitations sent successfully${errors.length > 0 ? `. ${errors.length} failed` : ''}`,
+      summary,
+    };
+  }
+
+  async inviteInternalUser(
+    organizationId: string,
+    inviteDto: InternalInviteDto,
+    inviterId: string,
+  ): Promise<InternalInvitationResponseDto> {
+    this.logger.log(
+      `Creating internal invitation for user ${inviteDto.userId} to organization ${organizationId}`,
+    );
+
+    const organization = await this.organizationRepository.findOne({
+      where: { id: organizationId },
+    });
+
+    if (!organization) {
+      throw new NotFoundException('Organization not found');
+    }
+
+    // Check if inviter has permission
+    await this.checkPermissions(organizationId, inviterId, [
+      OrganizationRole.OWNER,
+      OrganizationRole.ADMIN,
+    ]);
+
+    const inviter = await this.userRepository.findOne({
+      where: { id: inviterId },
+    });
+
+    const targetUser = await this.userRepository.findOne({
+      where: { id: inviteDto.userId },
+    });
+
+    if (!inviter || !targetUser) {
+      throw new NotFoundException('Inviter or target user not found');
+    }
+
+    // Check if user is already a member
+    const existingMember = await this.organizationMemberRepository.findOne({
+      where: { organizationId, userId: inviteDto.userId },
+    });
+
+    if (existingMember) {
+      throw new ConflictException(
+        'User is already a member of this organization',
+      );
+    }
+
+    // Check if there's already a pending internal invitation
+    const existingInvitation = await this.internalInvitationRepository.findOne({
+      where: { organizationId, userId: inviteDto.userId, status: 'pending' },
+    });
+
+    if (existingInvitation) {
+      throw new ConflictException(
+        'Internal invitation already sent to this user',
+      );
+    }
+
+    // Create internal invitation
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7); // 7 days expiry
+
+    const invitation = this.internalInvitationRepository.create({
+      organizationId,
+      userId: inviteDto.userId,
+      role: inviteDto.role,
+      invitedBy: inviterId,
+      message: inviteDto.message,
+      workspaceId: inviteDto.workspaceId,
+      expiresAt,
+      status: 'pending',
+    });
+
+    const savedInvitation =
+      await this.internalInvitationRepository.save(invitation);
+
+    // Load with relations
+    const invitationWithRelations =
+      await this.internalInvitationRepository.findOne({
+        where: { id: savedInvitation.id },
+        relations: ['inviter', 'organization', 'user'],
+      });
+
+    if (!invitationWithRelations) {
+      throw new Error('Failed to load invitation with relations');
+    }
+
+    // Send in-app notification
+    await this.sendInternalInvitationNotification(
+      targetUser,
+      organization,
+      inviter,
+      invitationWithRelations,
+      inviteDto,
+    );
+
+    this.logger.log(
+      `Internal invitation sent: ${targetUser.email} to ${organization.name}`,
+    );
+
+    return this.mapInternalInvitationToResponseDto(invitationWithRelations);
   }
 
   async getMembers(
@@ -1154,6 +1427,380 @@ export class OrganizationService {
       total: activities.length,
       page,
       limit,
+    };
+  }
+
+  // ==================== ACCEPTANCE METHODS ====================
+
+  async acceptInvitationWithAccount(
+    acceptDto: AcceptInvitationWithAccountDto,
+  ): Promise<AcceptInvitationResponseDto> {
+    const invitation = await this.organizationInvitationRepository.findOne({
+      where: { token: acceptDto.token, isAccepted: false },
+      relations: ['organization'],
+    });
+
+    if (!invitation) {
+      throw new NotFoundException('Invalid or expired invitation');
+    }
+
+    if (invitation.expiresAt < new Date()) {
+      throw new BadRequestException('Invitation has expired');
+    }
+
+    if (invitation.email !== acceptDto.email) {
+      throw new ForbiddenException('Email does not match invitation email');
+    }
+
+    // Check if user already exists
+    let user = await this.userRepository.findOne({
+      where: { email: acceptDto.email },
+    });
+
+    if (user) {
+      throw new ConflictException(
+        'User already exists. Please use the regular accept invitation endpoint.',
+      );
+    }
+
+    // Create new user account
+    const bcrypt = require('bcrypt');
+    const hashedPassword = await bcrypt.hash(acceptDto.password, 10);
+
+    user = this.userRepository.create({
+      firstName: acceptDto.firstName,
+      lastName: acceptDto.lastName,
+      email: acceptDto.email,
+      password: hashedPassword,
+      displayName:
+        acceptDto.displayName || `${acceptDto.firstName} ${acceptDto.lastName}`,
+      isEmailVerified: true, // Auto-verify since they accepted invitation
+    });
+
+    const savedUser = await this.userRepository.save(user);
+
+    // Create organization member
+    const organizationMember = this.organizationMemberRepository.create({
+      organizationId: invitation.organizationId,
+      userId: savedUser.id,
+      role: invitation.role,
+      invitedBy: invitation.invitedBy,
+      invitedAt: invitation.createdAt,
+      joinedAt: new Date(),
+    });
+
+    await this.organizationMemberRepository.save(organizationMember);
+
+    // Mark invitation as accepted
+    invitation.isAccepted = true;
+    invitation.acceptedAt = new Date();
+    invitation.acceptedBy = savedUser.id;
+    await this.organizationInvitationRepository.save(invitation);
+
+    // Send notification to organization admins
+    await this.notificationService.sendNotification({
+      type: NotificationType.ORGANIZATION_MEMBER_JOINED,
+      title: 'New Member Joined',
+      message: `${savedUser.firstName} ${savedUser.lastName} has joined your organization`,
+      recipientId: invitation.organization.ownerId,
+      senderId: savedUser.id,
+      channels: [NotificationChannel.EMAIL, NotificationChannel.IN_APP],
+      priority: NotificationPriority.MEDIUM,
+      data: {
+        organizationId: invitation.organizationId,
+        organizationName: invitation.organization.name,
+        newMemberName: `${savedUser.firstName} ${savedUser.lastName}`,
+        newMemberEmail: savedUser.email,
+        role: invitation.role,
+      },
+    });
+
+    this.logger.log(
+      `New user created and joined organization: ${savedUser.email} joined ${invitation.organization.name}`,
+    );
+
+    return {
+      success: true,
+      message: 'Account created and successfully joined organization',
+      user: {
+        id: savedUser.id,
+        firstName: savedUser.firstName,
+        lastName: savedUser.lastName,
+        email: savedUser.email,
+      },
+      organization: {
+        id: invitation.organization.id,
+        name: invitation.organization.name,
+      },
+      membership: {
+        id: organizationMember.id,
+        role: invitation.role,
+        joinedAt: organizationMember.joinedAt,
+      },
+    };
+  }
+
+  async acceptInternalInvitation(
+    invitationId: string,
+    userId: string,
+  ): Promise<AcceptInvitationResponseDto> {
+    const invitation = await this.internalInvitationRepository.findOne({
+      where: { id: invitationId, userId, status: 'pending' },
+      relations: ['organization', 'user'],
+    });
+
+    if (!invitation) {
+      throw new NotFoundException('Invalid or expired invitation');
+    }
+
+    if (invitation.expiresAt < new Date()) {
+      throw new BadRequestException('Invitation has expired');
+    }
+
+    // Check if user is already a member
+    const existingMember = await this.organizationMemberRepository.findOne({
+      where: { organizationId: invitation.organizationId, userId },
+    });
+
+    if (existingMember) {
+      throw new ConflictException(
+        'User is already a member of this organization',
+      );
+    }
+
+    // Create organization member
+    const organizationMember = this.organizationMemberRepository.create({
+      organizationId: invitation.organizationId,
+      userId,
+      role: invitation.role,
+      invitedBy: invitation.invitedBy,
+      invitedAt: invitation.createdAt,
+      joinedAt: new Date(),
+    });
+
+    await this.organizationMemberRepository.save(organizationMember);
+
+    // Update invitation status
+    invitation.status = 'accepted';
+    invitation.respondedAt = new Date();
+    await this.internalInvitationRepository.save(invitation);
+
+    // Send notification to organization admins
+    await this.notificationService.sendNotification({
+      type: NotificationType.INTERNAL_INVITATION_ACCEPTED,
+      title: 'Internal Invitation Accepted',
+      message: `${invitation.user.firstName} ${invitation.user.lastName} has accepted your invitation`,
+      recipientId: invitation.organization.ownerId,
+      senderId: userId,
+      channels: [NotificationChannel.EMAIL, NotificationChannel.IN_APP],
+      priority: NotificationPriority.MEDIUM,
+      data: {
+        organizationId: invitation.organizationId,
+        organizationName: invitation.organization.name,
+        memberName: `${invitation.user.firstName} ${invitation.user.lastName}`,
+        memberEmail: invitation.user.email,
+        role: invitation.role,
+      },
+    });
+
+    this.logger.log(
+      `Internal invitation accepted: ${invitation.user.email} joined ${invitation.organization.name}`,
+    );
+
+    return {
+      success: true,
+      message: 'Successfully joined organization',
+      user: {
+        id: invitation.user.id,
+        firstName: invitation.user.firstName,
+        lastName: invitation.user.lastName,
+        email: invitation.user.email,
+      },
+      organization: {
+        id: invitation.organization.id,
+        name: invitation.organization.name,
+      },
+      membership: {
+        id: organizationMember.id,
+        role: invitation.role,
+        joinedAt: organizationMember.joinedAt,
+      },
+    };
+  }
+
+  async declineInternalInvitation(
+    invitationId: string,
+    userId: string,
+    declineDto: DeclineInvitationDto,
+  ): Promise<{ message: string }> {
+    const invitation = await this.internalInvitationRepository.findOne({
+      where: { id: invitationId, userId, status: 'pending' },
+      relations: ['organization', 'user', 'inviter'],
+    });
+
+    if (!invitation) {
+      throw new NotFoundException('Invalid or expired invitation');
+    }
+
+    // Update invitation status
+    invitation.status = 'declined';
+    invitation.respondedAt = new Date();
+    invitation.declineReason = declineDto.reason || null;
+    await this.internalInvitationRepository.save(invitation);
+
+    // Send notification to inviter
+    await this.notificationService.sendNotification({
+      type: NotificationType.INTERNAL_INVITATION_DECLINED,
+      title: 'Invitation Declined',
+      message: `${invitation.user.firstName} ${invitation.user.lastName} has declined your invitation`,
+      recipientId: invitation.invitedBy,
+      senderId: userId,
+      channels: [NotificationChannel.EMAIL, NotificationChannel.IN_APP],
+      priority: NotificationPriority.MEDIUM,
+      data: {
+        organizationId: invitation.organizationId,
+        organizationName: invitation.organization.name,
+        memberName: `${invitation.user.firstName} ${invitation.user.lastName}`,
+        memberEmail: invitation.user.email,
+        role: invitation.role,
+        reason: declineDto.reason,
+      },
+    });
+
+    this.logger.log(
+      `Internal invitation declined: ${invitation.user.email} declined ${invitation.organization.name}`,
+    );
+
+    return { message: 'Invitation declined successfully' };
+  }
+
+  // ==================== HELPER METHODS ====================
+
+  private async sendExternalInvitationNotification(
+    email: string,
+    organization: Organization,
+    inviter: User,
+    invitation: OrganizationInvitation,
+    inviteDto: InviteMultipleMembersDto,
+  ): Promise<void> {
+    try {
+      this.logger.debug(`Sending external invitation email to: ${email}`);
+
+      await this.notificationService.sendNotification({
+        type: NotificationType.ORGANIZATION_INVITATION,
+        title: `You've been invited to join ${organization.name}`,
+        message: `${inviter.firstName} ${inviter.lastName} has invited you to join ${organization.name}${inviteDto.message ? `. Message: ${inviteDto.message}` : ''}`,
+        recipientId: `email:${email}`, // Special format for email-only recipients
+        senderId: inviter.id,
+        channels: [NotificationChannel.EMAIL],
+        priority: NotificationPriority.HIGH,
+        data: {
+          organizationId: organization.id,
+          organizationName: organization.name,
+          inviterName: `${inviter.firstName} ${inviter.lastName}`,
+          inviterEmail: inviter.email,
+          token: invitation.token,
+          role: inviteDto.role,
+          message: inviteDto.message,
+          acceptUrl: `${process.env.FRONTEND_URL}/accept-invitation?token=${invitation.token}`,
+          workspaceId: inviteDto.workspaceId,
+          expiresAt: invitation.expiresAt,
+          pricingPlan: inviteDto.pricingPlan || 'free',
+          planFeatures: inviteDto.planFeatures || 'Basic features included',
+        },
+      });
+
+      this.logger.debug(
+        `External invitation email sent successfully to: ${email}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to send external invitation email to ${email}:`,
+        error,
+      );
+      throw error;
+    }
+  }
+
+  private async sendInternalInvitationNotification(
+    targetUser: User,
+    organization: Organization,
+    inviter: User,
+    invitation: InternalInvitation,
+    inviteDto: InternalInviteDto,
+  ): Promise<void> {
+    try {
+      this.logger.debug(
+        `Sending internal invitation notification to: ${targetUser.email}`,
+      );
+
+      await this.notificationService.sendNotification({
+        type: NotificationType.INTERNAL_INVITATION,
+        title: `You've been invited to join ${organization.name}`,
+        message: `${inviter.firstName} ${inviter.lastName} has invited you to join ${organization.name}${inviteDto.message ? `. Message: ${inviteDto.message}` : ''}`,
+        recipientId: targetUser.id,
+        senderId: inviter.id,
+        channels: [NotificationChannel.IN_APP, NotificationChannel.EMAIL],
+        priority: NotificationPriority.HIGH,
+        data: {
+          invitationId: invitation.id,
+          organizationId: organization.id,
+          organizationName: organization.name,
+          inviterName: `${inviter.firstName} ${inviter.lastName}`,
+          inviterEmail: inviter.email,
+          role: inviteDto.role,
+          message: inviteDto.message,
+          workspaceId: inviteDto.workspaceId,
+          expiresAt: invitation.expiresAt,
+          acceptUrl: `${process.env.FRONTEND_URL}/internal-invitation/${invitation.id}/accept`,
+          declineUrl: `${process.env.FRONTEND_URL}/internal-invitation/${invitation.id}/decline`,
+        },
+      });
+
+      this.logger.debug(
+        `Internal invitation notification sent successfully to: ${targetUser.email}`,
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to send internal invitation notification to ${targetUser.email}:`,
+        error,
+      );
+      throw error;
+    }
+  }
+
+  private mapInternalInvitationToResponseDto(
+    invitation: InternalInvitation,
+  ): InternalInvitationResponseDto {
+    return {
+      id: invitation.id,
+      userId: invitation.userId,
+      role: invitation.role,
+      message: invitation.message,
+      status: invitation.status,
+      createdAt: invitation.createdAt,
+      expiresAt: invitation.expiresAt,
+      inviter: invitation.inviter
+        ? {
+            id: invitation.inviter.id,
+            firstName: invitation.inviter.firstName,
+            lastName: invitation.inviter.lastName,
+          }
+        : null,
+      organization: invitation.organization
+        ? {
+            id: invitation.organization.id,
+            name: invitation.organization.name,
+          }
+        : null,
+      user: invitation.user
+        ? {
+            id: invitation.user.id,
+            firstName: invitation.user.firstName,
+            lastName: invitation.user.lastName,
+            email: invitation.user.email,
+          }
+        : null,
     };
   }
 }

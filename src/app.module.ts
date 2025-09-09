@@ -10,6 +10,7 @@ import {
   Organization,
   OrganizationMember,
   OrganizationInvitation,
+  InternalInvitation,
 } from './entities/organization.entity';
 import {
   Workspace,
@@ -64,6 +65,7 @@ import {
           Organization,
           OrganizationMember,
           OrganizationInvitation,
+          InternalInvitation,
           Workspace,
           WorkspaceMember,
           WorkspaceInvitation,

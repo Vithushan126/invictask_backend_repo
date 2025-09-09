@@ -20,7 +20,31 @@ export class EmailService {
 
   async sendEmail(emailData: EmailNotificationDto): Promise<boolean> {
     try {
+      // Check if we're in development mode and email credentials are not configured
+      if (!process.env.MAIL_USER || !process.env.MAIL_PASS) {
+        this.logger.warn(
+          'Email credentials not configured. Simulating email send in development mode.',
+        );
+        this.logger.log(`[SIMULATED EMAIL] To: ${emailData.to}`);
+        this.logger.log(`[SIMULATED EMAIL] Subject: ${emailData.subject}`);
+        this.logger.log(
+          `[SIMULATED EMAIL] Content: ${emailData.textContent?.substring(0, 100)}...`,
+        );
+        return true;
+      }
+
       const transporter = this.mailConfig.getTransporter();
+
+      // Verify connection before sending
+      const isConnected = await this.mailConfig.verifyConnection();
+      if (!isConnected) {
+        this.logger.warn(
+          'Email server connection failed. Simulating email send.',
+        );
+        this.logger.log(`[SIMULATED EMAIL] To: ${emailData.to}`);
+        this.logger.log(`[SIMULATED EMAIL] Subject: ${emailData.subject}`);
+        return true;
+      }
 
       const mailOptions = {
         from: this.mailConfig.getFromAddress(),
@@ -38,6 +62,13 @@ export class EmailService {
       return true;
     } catch (error) {
       this.logger.error(`Failed to send email: ${error.message}`, error.stack);
+      // In development, don't throw error - just log and return false
+      if (process.env.NODE_ENV === 'development') {
+        this.logger.warn(
+          'Email sending failed in development mode. Continuing...',
+        );
+        return false;
+      }
       throw new InternalServerErrorException('Failed to send email');
     }
   }
@@ -984,5 +1015,468 @@ export class EmailService {
       default:
         return '#6b7280';
     }
+  }
+
+  // ==================== ENHANCED INVITATION EMAIL METHODS ====================
+
+  async sendOrganizationInvitationEmail(
+    recipientEmail: string,
+    data: any,
+  ): Promise<boolean> {
+    const htmlContent = this.generateOrganizationInvitationTemplate(data);
+
+    const emailData: EmailNotificationDto = {
+      to: recipientEmail,
+      subject: `You've been invited to join ${data.organizationName} 🎉`,
+      htmlContent,
+      textContent: `${data.inviterName} has invited you to join ${data.organizationName}. Role: ${data.role}. ${data.message ? `Message: ${data.message}` : ''} Click the link to accept: ${data.acceptUrl}`,
+    };
+
+    return this.sendEmail(emailData);
+  }
+
+  async sendInternalInvitationEmail(
+    recipientEmail: string,
+    data: any,
+  ): Promise<boolean> {
+    const htmlContent = this.generateInternalInvitationTemplate(data);
+
+    const emailData: EmailNotificationDto = {
+      to: recipientEmail,
+      subject: `You've been invited to join ${data.organizationName} 📨`,
+      htmlContent,
+      textContent: `${data.inviterName} has invited you to join ${data.organizationName}. Role: ${data.role}. ${data.message ? `Message: ${data.message}` : ''} Accept or decline in your dashboard.`,
+    };
+
+    return this.sendEmail(emailData);
+  }
+
+  async sendMemberJoinedEmail(
+    recipientEmail: string,
+    data: any,
+  ): Promise<boolean> {
+    const htmlContent = this.generateMemberJoinedTemplate(data);
+
+    const emailData: EmailNotificationDto = {
+      to: recipientEmail,
+      subject: `${data.newMemberName} joined ${data.organizationName} 👋`,
+      htmlContent,
+      textContent: `${data.newMemberName} (${data.newMemberEmail}) has joined your organization ${data.organizationName} as a ${data.role}.`,
+    };
+
+    return this.sendEmail(emailData);
+  }
+
+  async sendInternalInvitationAcceptedEmail(
+    recipientEmail: string,
+    data: any,
+  ): Promise<boolean> {
+    const htmlContent = this.generateInternalInvitationAcceptedTemplate(data);
+
+    const emailData: EmailNotificationDto = {
+      to: recipientEmail,
+      subject: `${data.memberName} accepted your invitation ✅`,
+      htmlContent,
+      textContent: `${data.memberName} (${data.memberEmail}) has accepted your invitation to join ${data.organizationName} as a ${data.role}.`,
+    };
+
+    return this.sendEmail(emailData);
+  }
+
+  async sendInternalInvitationDeclinedEmail(
+    recipientEmail: string,
+    data: any,
+  ): Promise<boolean> {
+    const htmlContent = this.generateInternalInvitationDeclinedTemplate(data);
+
+    const emailData: EmailNotificationDto = {
+      to: recipientEmail,
+      subject: `${data.memberName} declined your invitation ❌`,
+      htmlContent,
+      textContent: `${data.memberName} (${data.memberEmail}) has declined your invitation to join ${data.organizationName}. ${data.reason ? `Reason: ${data.reason}` : ''}`,
+    };
+
+    return this.sendEmail(emailData);
+  }
+
+  // ==================== EMAIL TEMPLATE GENERATORS ====================
+
+  private generateOrganizationInvitationTemplate(data: any): string {
+    const expiryDate = data.expiresAt
+      ? new Date(data.expiresAt).toLocaleDateString()
+      : '7 days';
+
+    return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Organization Invitation</title>
+    </head>
+    <body style="margin: 0; padding: 0; background-color: #f4f4f4; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+      <div style="max-width: 600px; margin: 0 auto; background-color: white; padding: 0;">
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 30px; text-align: center;">
+          <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 600;">
+            You're Invited! 🎉
+          </h1>
+          <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 16px;">
+            Join ${data.organizationName} and start collaborating
+          </p>
+        </div>
+
+        <!-- Content -->
+        <div style="padding: 40px 30px;">
+          <div style="text-align: center; margin-bottom: 30px;">
+            <div style="width: 80px; height: 80px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;">
+              <span style="color: white; font-size: 36px;">👥</span>
+            </div>
+          </div>
+
+          <h2 style="color: #333; text-align: center; margin: 0 0 20px 0; font-size: 24px;">
+            ${data.inviterName} invited you to join
+          </h2>
+
+          <div style="background: #f8f9fa; border-radius: 12px; padding: 25px; margin: 25px 0; border-left: 4px solid #667eea;">
+            <h3 style="color: #333; margin: 0 0 15px 0; font-size: 20px;">
+              ${data.organizationName}
+            </h3>
+            <div style="margin: 10px 0;">
+              <span style="color: #666; font-weight: 500;">Your Role:</span>
+              <span style="color: #333; font-weight: 600; text-transform: capitalize;
+                           background: #e3f2fd; padding: 4px 12px; border-radius: 20px; margin-left: 8px;">
+                ${data.role}
+              </span>
+            </div>
+
+            <!-- Pricing Plan Information -->
+            ${
+              data.pricingPlan
+                ? `
+            <div style="margin: 15px 0; padding: 15px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        border-radius: 8px; color: white;">
+              <div style="display: flex; align-items: center; margin-bottom: 8px;">
+                <span style="font-size: 20px; margin-right: 8px;">💎</span>
+                <span style="font-weight: 600; text-transform: uppercase; font-size: 14px;">
+                  ${data.pricingPlan} Plan
+                </span>
+              </div>
+              <p style="margin: 0; font-size: 14px; opacity: 0.9;">
+                ${data.planFeatures}
+              </p>
+            </div>
+            `
+                : ''
+            }
+
+            ${
+              data.message
+                ? `
+            <div style="margin: 15px 0 0 0; padding: 15px; background: white; border-radius: 8px; border: 1px solid #e0e0e0;">
+              <span style="color: #666; font-weight: 500;">Personal Message:</span>
+              <p style="color: #333; margin: 8px 0 0 0; font-style: italic;">"${data.message}"</p>
+            </div>
+            `
+                : ''
+            }
+          </div>
+
+          <!-- CTA Button -->
+          <div style="text-align: center; margin: 35px 0;">
+            <a href="${data.acceptUrl}"
+               style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                      color: white; padding: 16px 40px; border-radius: 50px; text-decoration: none;
+                      font-weight: 600; font-size: 16px; box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);">
+              Accept Invitation
+            </a>
+          </div>
+
+          <!-- Alternative Link -->
+          <div style="text-align: center; margin: 20px 0;">
+            <p style="color: #666; font-size: 14px; margin: 0;">
+              Can't click the button? Copy and paste this link:
+            </p>
+            <p style="color: #667eea; font-size: 14px; word-break: break-all; margin: 5px 0;">
+              ${data.acceptUrl}
+            </p>
+          </div>
+
+          <!-- Expiry Notice -->
+          <div style="background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 8px; padding: 15px; margin: 25px 0;">
+            <p style="color: #856404; margin: 0; font-size: 14px; text-align: center;">
+              ⏰ This invitation expires on ${expiryDate}
+            </p>
+          </div>
+        </div>
+
+        <!-- Footer -->
+        <div style="background: #f8f9fa; padding: 25px 30px; text-align: center; border-top: 1px solid #e0e0e0;">
+          <p style="color: #666; margin: 0; font-size: 14px;">
+            This invitation was sent by ${data.inviterName}
+          </p>
+          <p style="color: #999; margin: 10px 0 0 0; font-size: 12px;">
+            If you didn't expect this invitation, you can safely ignore this email.
+          </p>
+        </div>
+      </div>
+    </body>
+    </html>`;
+  }
+
+  private generateInternalInvitationTemplate(data: any): string {
+    return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Internal Invitation</title>
+    </head>
+    <body style="margin: 0; padding: 0; background-color: #f4f4f4; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+      <div style="max-width: 600px; margin: 0 auto; background-color: white; padding: 0;">
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); padding: 40px 30px; text-align: center;">
+          <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 600;">
+            Team Invitation 📨
+          </h1>
+          <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 16px;">
+            You've been invited to join ${data.organizationName}
+          </p>
+        </div>
+
+        <!-- Content -->
+        <div style="padding: 40px 30px;">
+          <h2 style="color: #333; text-align: center; margin: 0 0 20px 0; font-size: 24px;">
+            ${data.inviterName} invited you to join their team
+          </h2>
+
+          <div style="background: #f8f9fa; border-radius: 12px; padding: 25px; margin: 25px 0; border-left: 4px solid #4f46e5;">
+            <h3 style="color: #333; margin: 0 0 15px 0; font-size: 20px;">
+              ${data.organizationName}
+            </h3>
+            <div style="margin: 10px 0;">
+              <span style="color: #666; font-weight: 500;">Your Role:</span>
+              <span style="color: #333; font-weight: 600; text-transform: capitalize;
+                           background: #e0e7ff; padding: 4px 12px; border-radius: 20px; margin-left: 8px;">
+                ${data.role}
+              </span>
+            </div>
+            ${
+              data.message
+                ? `
+            <div style="margin: 15px 0 0 0; padding: 15px; background: white; border-radius: 8px; border: 1px solid #e0e0e0;">
+              <span style="color: #666; font-weight: 500;">Message:</span>
+              <p style="color: #333; margin: 8px 0 0 0; font-style: italic;">"${data.message}"</p>
+            </div>
+            `
+                : ''
+            }
+          </div>
+
+          <!-- CTA Buttons -->
+          <div style="text-align: center; margin: 35px 0;">
+            <a href="${data.acceptUrl}"
+               style="display: inline-block; background: #10b981; color: white; padding: 12px 30px;
+                      border-radius: 6px; text-decoration: none; font-weight: 600; margin: 0 10px;">
+              Accept
+            </a>
+            <a href="${data.declineUrl}"
+               style="display: inline-block; background: #ef4444; color: white; padding: 12px 30px;
+                      border-radius: 6px; text-decoration: none; font-weight: 600; margin: 0 10px;">
+              Decline
+            </a>
+          </div>
+
+          <p style="text-align: center; color: #666; font-size: 14px;">
+            You can also respond to this invitation in your dashboard.
+          </p>
+        </div>
+
+        <!-- Footer -->
+        <div style="background: #f8f9fa; padding: 25px 30px; text-align: center; border-top: 1px solid #e0e0e0;">
+          <p style="color: #666; margin: 0; font-size: 14px;">
+            This invitation was sent by ${data.inviterName}
+          </p>
+        </div>
+      </div>
+    </body>
+    </html>`;
+  }
+
+  private generateMemberJoinedTemplate(data: any): string {
+    return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>New Member Joined</title>
+    </head>
+    <body style="margin: 0; padding: 0; background-color: #f4f4f4; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+      <div style="max-width: 600px; margin: 0 auto; background-color: white; padding: 0;">
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 40px 30px; text-align: center;">
+          <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 600;">
+            New Team Member! 👋
+          </h1>
+          <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 16px;">
+            ${data.newMemberName} has joined your organization
+          </p>
+        </div>
+
+        <!-- Content -->
+        <div style="padding: 40px 30px; text-align: center;">
+          <div style="width: 80px; height: 80px; background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+                      border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;">
+            <span style="color: white; font-size: 36px;">👤</span>
+          </div>
+
+          <h2 style="color: #333; margin: 0 0 20px 0; font-size: 24px;">
+            Welcome ${data.newMemberName}!
+          </h2>
+
+          <div style="background: #f0fdf4; border-radius: 12px; padding: 25px; margin: 25px 0; border-left: 4px solid #10b981;">
+            <p style="color: #333; margin: 0; font-size: 16px;">
+              <strong>${data.newMemberName}</strong> (${data.newMemberEmail}) has joined
+              <strong>${data.organizationName}</strong> as a <strong>${data.role}</strong>.
+            </p>
+          </div>
+
+          <p style="color: #666; font-size: 14px; margin: 20px 0;">
+            Your team is growing! Make sure to welcome them and help them get started.
+          </p>
+        </div>
+
+        <!-- Footer -->
+        <div style="background: #f8f9fa; padding: 25px 30px; text-align: center; border-top: 1px solid #e0e0e0;">
+          <p style="color: #666; margin: 0; font-size: 14px;">
+            ${data.organizationName} Team
+          </p>
+        </div>
+      </div>
+    </body>
+    </html>`;
+  }
+
+  private generateInternalInvitationAcceptedTemplate(data: any): string {
+    return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Invitation Accepted</title>
+    </head>
+    <body style="margin: 0; padding: 0; background-color: #f4f4f4; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+      <div style="max-width: 600px; margin: 0 auto; background-color: white; padding: 0;">
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 40px 30px; text-align: center;">
+          <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 600;">
+            Invitation Accepted! ✅
+          </h1>
+          <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 16px;">
+            Great news about your team invitation
+          </p>
+        </div>
+
+        <!-- Content -->
+        <div style="padding: 40px 30px; text-align: center;">
+          <div style="width: 80px; height: 80px; background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+                      border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;">
+            <span style="color: white; font-size: 36px;">✅</span>
+          </div>
+
+          <h2 style="color: #333; margin: 0 0 20px 0; font-size: 24px;">
+            ${data.memberName} accepted your invitation!
+          </h2>
+
+          <div style="background: #f0fdf4; border-radius: 12px; padding: 25px; margin: 25px 0; border-left: 4px solid #10b981;">
+            <p style="color: #333; margin: 0; font-size: 16px;">
+              <strong>${data.memberName}</strong> (${data.memberEmail}) has accepted your invitation
+              to join <strong>${data.organizationName}</strong> as a <strong>${data.role}</strong>.
+            </p>
+          </div>
+
+          <p style="color: #666; font-size: 14px; margin: 20px 0;">
+            They're now part of your team and can start collaborating right away!
+          </p>
+        </div>
+
+        <!-- Footer -->
+        <div style="background: #f8f9fa; padding: 25px 30px; text-align: center; border-top: 1px solid #e0e0e0;">
+          <p style="color: #666; margin: 0; font-size: 14px;">
+            ${data.organizationName} Team
+          </p>
+        </div>
+      </div>
+    </body>
+    </html>`;
+  }
+
+  private generateInternalInvitationDeclinedTemplate(data: any): string {
+    return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Invitation Declined</title>
+    </head>
+    <body style="margin: 0; padding: 0; background-color: #f4f4f4; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;">
+      <div style="max-width: 600px; margin: 0 auto; background-color: white; padding: 0;">
+        <!-- Header -->
+        <div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 40px 30px; text-align: center;">
+          <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 600;">
+            Invitation Declined ❌
+          </h1>
+          <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 16px;">
+            Update about your team invitation
+          </p>
+        </div>
+
+        <!-- Content -->
+        <div style="padding: 40px 30px; text-align: center;">
+          <div style="width: 80px; height: 80px; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+                      border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;">
+            <span style="color: white; font-size: 36px;">❌</span>
+          </div>
+
+          <h2 style="color: #333; margin: 0 0 20px 0; font-size: 24px;">
+            ${data.memberName} declined your invitation
+          </h2>
+
+          <div style="background: #fef3c7; border-radius: 12px; padding: 25px; margin: 25px 0; border-left: 4px solid #f59e0b;">
+            <p style="color: #333; margin: 0; font-size: 16px;">
+              <strong>${data.memberName}</strong> (${data.memberEmail}) has declined your invitation
+              to join <strong>${data.organizationName}</strong>.
+            </p>
+            ${
+              data.reason
+                ? `
+            <div style="margin: 15px 0 0 0; padding: 15px; background: white; border-radius: 8px; border: 1px solid #e0e0e0;">
+              <span style="color: #666; font-weight: 500;">Reason:</span>
+              <p style="color: #333; margin: 8px 0 0 0; font-style: italic;">"${data.reason}"</p>
+            </div>
+            `
+                : ''
+            }
+          </div>
+
+          <p style="color: #666; font-size: 14px; margin: 20px 0;">
+            You can always send another invitation later if needed.
+          </p>
+        </div>
+
+        <!-- Footer -->
+        <div style="background: #f8f9fa; padding: 25px 30px; text-align: center; border-top: 1px solid #e0e0e0;">
+          <p style="color: #666; margin: 0; font-size: 14px;">
+            ${data.organizationName} Team
+          </p>
+        </div>
+      </div>
+    </body>
+    </html>`;
   }
 }

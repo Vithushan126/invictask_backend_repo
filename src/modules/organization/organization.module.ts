@@ -8,6 +8,7 @@ import {
   Organization,
   OrganizationMember,
   OrganizationInvitation,
+  InternalInvitation,
 } from '../../entities/organization.entity';
 import { User } from '../../entities/user.entity';
 import { Workspace, WorkspaceMember } from '../../entities/workspace.entity';
@@ -21,6 +22,7 @@ import { FileUploadModule } from '../file-upload/file-upload.module';
       Organization,
       OrganizationMember,
       OrganizationInvitation,
+      InternalInvitation,
       User,
       Workspace,
       WorkspaceMember,

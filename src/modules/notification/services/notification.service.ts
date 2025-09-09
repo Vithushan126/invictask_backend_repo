@@ -201,9 +201,24 @@ export class NotificationService {
   private async sendEmailNotification(
     notificationData: CreateNotificationDto,
   ): Promise<NotificationDto | null> {
-    // This would typically get the user's email from a user service
-    const userEmail = `${notificationData.email}`;
-    // const userEmail = `user-${notificationData.recipientId}@example.com`;
+    // Extract email from recipientId if it's in format "email:user@example.com"
+    let userEmail: string;
+
+    if (notificationData.recipientId.startsWith('email:')) {
+      userEmail = notificationData.recipientId.replace('email:', '');
+    } else {
+      // For regular user IDs, we would typically get the email from a user service
+      // For now, we'll skip email sending for non-email recipients
+      this.logger.warn(
+        `Cannot send email to non-email recipient: ${notificationData.recipientId}`,
+      );
+      return null;
+    }
+
+    if (!userEmail || !userEmail.includes('@')) {
+      this.logger.error(`Invalid email address: ${userEmail}`);
+      return null;
+    }
 
     try {
       let emailSent = false;
@@ -270,13 +285,51 @@ export class NotificationService {
             notificationData.data as any,
           );
           break;
-          
+
         case NotificationType.TEAM_INVITATION:
           emailSent = await this.emailService.sendTeamInvitationEmail(
             userEmail,
             notificationData.data as any,
           );
           break;
+
+        case NotificationType.ORGANIZATION_INVITATION:
+          emailSent = await this.emailService.sendOrganizationInvitationEmail(
+            userEmail,
+            notificationData.data as any,
+          );
+          break;
+
+        case NotificationType.INTERNAL_INVITATION:
+          emailSent = await this.emailService.sendInternalInvitationEmail(
+            userEmail,
+            notificationData.data as any,
+          );
+          break;
+
+        case NotificationType.ORGANIZATION_MEMBER_JOINED:
+          emailSent = await this.emailService.sendMemberJoinedEmail(
+            userEmail,
+            notificationData.data as any,
+          );
+          break;
+
+        case NotificationType.INTERNAL_INVITATION_ACCEPTED:
+          emailSent =
+            await this.emailService.sendInternalInvitationAcceptedEmail(
+              userEmail,
+              notificationData.data as any,
+            );
+          break;
+
+        case NotificationType.INTERNAL_INVITATION_DECLINED:
+          emailSent =
+            await this.emailService.sendInternalInvitationDeclinedEmail(
+              userEmail,
+              notificationData.data as any,
+            );
+          break;
+
         // Add more email types as needed
       }
 
@@ -289,12 +342,30 @@ export class NotificationService {
           createdAt: new Date(),
           updatedAt: new Date(),
         };
+      } else {
+        this.logger.warn(
+          `Email notification failed but continuing: ${notificationData.title}`,
+        );
+        return {
+          id: `email_${Date.now()}`,
+          ...notificationData,
+          status: NotificationStatus.FAILED,
+          sentAt: new Date(),
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        };
       }
     } catch (error) {
       this.logger.error(`Failed to send email notification: ${error.message}`);
+      return {
+        id: `email_${Date.now()}`,
+        ...notificationData,
+        status: NotificationStatus.FAILED,
+        sentAt: new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
     }
-
-    return null;
   }
 
   private async sendInAppNotification(
