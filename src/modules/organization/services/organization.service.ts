@@ -660,8 +660,14 @@ export class OrganizationService {
   ): Promise<OrganizationMemberResponseDto[]> {
     await this.checkMembership(organizationId, userId);
 
+    // const members = await this.organizationMemberRepository.find({
+    //   where: { organizationId },
+    //   // where: { organizationId, isActive: true },
+    //   relations: ['user', 'inviter'],
+    //   order: { joinedAt: 'ASC' },
+    // });
     const members = await this.organizationMemberRepository.find({
-      where: { organizationId, isActive: true },
+      where: { organizationId },
       relations: ['user', 'inviter'],
       order: { joinedAt: 'ASC' },
     });
