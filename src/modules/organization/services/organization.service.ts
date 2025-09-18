@@ -1809,4 +1809,33 @@ export class OrganizationService {
         : null,
     };
   }
+
+  async getInvitations(
+    organizationId: string,
+    userId: string,
+  ): Promise<OrganizationInvitationResponseDto[]> {
+    const organization = await this.organizationRepository.findOne({
+      where: { id: organizationId },
+    });
+
+    if (!organization) {
+      throw new NotFoundException('Organization not found');
+    }
+
+    // Check permissions
+    await this.checkPermissions(organizationId, userId, [
+      OrganizationRole.OWNER,
+      OrganizationRole.ADMIN,
+    ]);
+
+    const invitations = await this.organizationInvitationRepository.find({
+      where: { organizationId, isAccepted: false },
+      relations: ['inviter', 'organization'],
+      order: { createdAt: 'DESC' },
+    });
+
+    return invitations.map((invitation) =>
+      this.mapInvitationToResponseDto(invitation),
+    );
+  }
 }

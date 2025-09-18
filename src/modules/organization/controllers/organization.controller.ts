@@ -36,6 +36,7 @@ import {
   SuperAdminOrganizationListDto,
   SuperAdminOrganizationStatsDto,
   SuperAdminUpdateOrganizationDto,
+  OrganizationInvitationResponseDto,
 } from '../dto/organization.dto';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
@@ -396,5 +397,13 @@ export class OrganizationController {
   ): Promise<{ message: string }> {
     await this.organizationService.update(id, { logo: null }, req.user.id);
     return { message: 'Organization logo removed successfully' };
+  }
+
+  @Get(':id/invitations')
+  async getInvitations(
+    @Param('id') id: string,
+    @Request() req,
+  ): Promise<OrganizationInvitationResponseDto[]> {
+    return this.organizationService.getInvitations(id, req.user.id);
   }
 }
