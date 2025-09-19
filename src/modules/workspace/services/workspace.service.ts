@@ -118,11 +118,21 @@ export class WorkspaceService {
 
     await this.workspaceMemberRepository.save(workspaceMember);
 
+    // Reload workspace with relations for response mapping
+    const workspaceWithRelations = await this.workspaceRepository.findOne({
+      where: { id: savedWorkspace.id },
+      relations: ['owner', 'organization'],
+    });
+
+    if (!workspaceWithRelations) {
+      throw new NotFoundException('Workspace not found after creation');
+    }
+
     this.logger.log(
       `Workspace created: ${savedWorkspace.name} by user ${userId}`,
     );
 
-    return this.mapToResponseDto(savedWorkspace);
+    return this.mapToResponseDto(workspaceWithRelations);
   }
 
   async findUserWorkspaces(
@@ -986,3 +996,4 @@ export class WorkspaceService {
     };
   }
 }
+

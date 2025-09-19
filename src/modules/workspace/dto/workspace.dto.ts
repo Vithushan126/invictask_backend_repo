@@ -1,5 +1,16 @@
-import { IsString, IsOptional, IsEnum, IsEmail, IsArray, IsBoolean, IsObject } from 'class-validator';
-import { WorkspaceRole, WorkspaceVisibility } from '../../../entities/workspace.entity';
+import {
+  IsString,
+  IsOptional,
+  IsEnum,
+  IsEmail,
+  IsArray,
+  IsBoolean,
+  IsObject,
+} from 'class-validator';
+import {
+  WorkspaceRole,
+  WorkspaceVisibility,
+} from '../../../entities/workspace.entity';
 
 export class CreateWorkspaceDto {
   @IsString()
