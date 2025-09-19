@@ -145,8 +145,8 @@ export class WorkspaceService {
       organizationId,
       sortBy,
       sortOrder,
-      page,
-      limit,
+      page = 1,
+      limit = 20,
     } = filter;
 
     const queryBuilder = this.workspaceRepository
@@ -154,6 +154,16 @@ export class WorkspaceService {
       .leftJoin('workspace.members', 'member')
       .leftJoin('workspace.organization', 'organization')
       .leftJoin('workspace.owner', 'owner')
+      .select([
+        'workspace',
+        'organization.id',
+        'organization.name',
+        'owner.id',
+        'owner.firstName',
+        'owner.lastName',
+        'owner.email',
+        'owner.avatar'
+      ])
       .where('member.userId = :userId AND member.isActive = true', { userId });
 
     // Apply filters
@@ -183,9 +193,11 @@ export class WorkspaceService {
     const sortDirection = sortOrder || 'DESC';
     queryBuilder.orderBy(`workspace.${sortField}`, sortDirection);
 
-    // Apply pagination
-    const skip = (page - 1) * limit;
-    queryBuilder.skip(skip).take(limit);
+    // Apply pagination - convert to numbers
+    const pageNum = Number(page);
+    const limitNum = Number(limit);
+    const skip = (pageNum - 1) * limitNum;
+    queryBuilder.skip(skip).take(limitNum);
 
     const [workspaces, total] = await queryBuilder.getManyAndCount();
 
@@ -996,4 +1008,6 @@ export class WorkspaceService {
     };
   }
 }
+
+
 
