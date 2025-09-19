@@ -54,23 +54,6 @@ export class SpaceController {
     return this.spaceService.findAll(query, req.user.id);
   }
 
-  @Get('my-spaces')
-  async findMySpaces(
-    @Query() query: SpaceSearchDto,
-    @Request() req,
-  ): Promise<SpaceListDto> {
-    return this.spaceService.findAll(query, req.user.id);
-  }
-
-  @Get('workspace/:workspaceId')
-  async findByWorkspace(
-    @Param('workspaceId') workspaceId: string,
-    @Query() query: SpaceSearchDto,
-    @Request() req,
-  ): Promise<SpaceListDto> {
-    return this.spaceService.findAll({ ...query, workspaceId }, req.user.id);
-  }
-
   @Get(':id')
   async findOne(
     @Param('id') id: string,
@@ -175,9 +158,7 @@ export class SpaceController {
   @Get('admin/all')
   @UseGuards(RolesGuard)
   @Roles(UserRole.SUPER_ADMIN)
-  async getAllSpaces(
-    @Query() query: SpaceSearchDto,
-  ): Promise<SpaceListDto> {
+  async getAllSpaces(@Query() query: SpaceSearchDto): Promise<SpaceListDto> {
     // For SUPER_ADMIN, we need a different method that doesn't filter by user
     // This would be implemented in the service
     throw new Error('Not implemented yet - requires admin service method');

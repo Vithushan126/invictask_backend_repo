@@ -107,9 +107,19 @@ export class SpaceService {
     });
     await this.spaceMemberRepository.save(spaceMember);
 
+    // Reload space with relations for response mapping
+    const spaceWithRelations = await this.spaceRepository.findOne({
+      where: { id: savedSpace.id },
+      relations: ['workspace', 'owner'],
+    });
+
+    if (!spaceWithRelations) {
+      throw new NotFoundException('Space not found after creation');
+    }
+
     this.logger.log(`Space created: ${savedSpace.name} by user ${userId}`);
 
-    return this.mapToResponseDto(savedSpace);
+    return this.mapToResponseDto(spaceWithRelations);
   }
 
   async findAll(query: SpaceSearchDto, userId: string): Promise<SpaceListDto> {
@@ -618,3 +628,5 @@ export class SpaceService {
     };
   }
 }
+
+
