@@ -44,6 +44,7 @@ import {
   FolderMember,
   FolderMilestone,
 } from './entities/folder.entity';
+import { ProjectModule } from './modules/project/project.module';
 
 @Module({
   imports: [
@@ -107,6 +108,7 @@ import {
     SpaceModule,
     FileUploadModule,
     NotificationModule,
+    ProjectModule,
   ],
   controllers: [AppController],
   providers: [AppService],
