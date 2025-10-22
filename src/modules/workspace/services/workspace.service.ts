@@ -162,7 +162,7 @@ export class WorkspaceService {
         'owner.firstName',
         'owner.lastName',
         'owner.email',
-        'owner.avatar'
+        'owner.avatar',
       ])
       .where('member.userId = :userId AND member.isActive = true', { userId });
 
@@ -1008,6 +1008,3 @@ export class WorkspaceService {
     };
   }
 }
-
-
-
