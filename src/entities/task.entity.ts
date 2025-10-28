@@ -16,19 +16,17 @@ import { Project } from './project.entity';
 import { List } from './list.entity';
 
 export enum TaskStatus {
-  TODO = 'todo',
-  IN_PROGRESS = 'in_progress',
-  IN_REVIEW = 'in_review',
-  BLOCKED = 'blocked',
-  DONE = 'done',
-  CANCELLED = 'cancelled',
+  NEW = 'NEW',
+  PENDING = 'PENDING',
+  INPROGRESS = 'INPROGRESS',
+  COMPLETED = 'COMPLETED',
 }
 
 export enum TaskPriority {
-  LOW = 'low',
-  NORMAL = 'normal',
-  HIGH = 'high',
-  URGENT = 'urgent',
+  LOW = 'LOW',
+  MEDIUM = 'MEDIUM',
+  HIGH = 'HIGH',
+  URGENT = 'URGENT',
 }
 
 @Entity('tasks')
@@ -74,7 +72,7 @@ export class Task {
   @Column({
     type: 'enum',
     enum: TaskStatus,
-    default: TaskStatus.TODO,
+    default: TaskStatus.NEW,
   })
   @Index()
   status: TaskStatus;
@@ -82,7 +80,7 @@ export class Task {
   @Column({
     type: 'enum',
     enum: TaskPriority,
-    default: TaskPriority.NORMAL,
+    default: TaskPriority.LOW,
   })
   @Index()
   priority: TaskPriority;
@@ -176,12 +174,12 @@ export class Task {
   // Virtual properties
   get isOverdue(): boolean {
     return this.dueDate
-      ? new Date() > this.dueDate && this.status !== TaskStatus.DONE
+      ? new Date() > this.dueDate && this.status !== TaskStatus.COMPLETED
       : false;
   }
 
   get isCompleted(): boolean {
-    return this.status === TaskStatus.DONE;
+    return this.status === TaskStatus.COMPLETED;
   }
 
   get subtaskCount(): number {
