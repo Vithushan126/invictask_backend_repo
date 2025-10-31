@@ -28,7 +28,9 @@
     "@nestjs/mapped-types": "^2.1.0",
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/platform-socket.io": "^11.1.8",
     "@nestjs/typeorm": "^11.0.0",
+    "@nestjs/websockets": "^11.1.8",
     "@types/bcryptjs": "^2.4.6",
     "@types/multer": "^2.0.0",
     "@types/nodemailer": "^7.0.1",
@@ -49,6 +51,7 @@
     "pg": "^8.16.3",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
+    "socket.io": "^4.8.1",
     "typeorm": "^0.3.26"
   },
   "devDependencies": {
@@ -74,7 +77,8 @@
     "ts-loader": "^9.5.2",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
-    "typescript": "^5.7.3",
+    "typeorm-uml": "^1.6.5",
+    "typescript": "^5.9.3",
     "typescript-eslint": "^8.20.0"
   },
   "jest": {

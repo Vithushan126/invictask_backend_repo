@@ -11,6 +11,7 @@ import {
 } from 'typeorm';
 import { User } from './user.entity';
 import { Workspace } from './workspace.entity';
+import { Project } from './project.entity';
 
 export enum SpaceVisibility {
   PRIVATE = 'private',
@@ -136,6 +137,9 @@ export class Space {
   @UpdateDateColumn()
   updatedAt: Date;
 
+  @OneToMany(() => Project, (project) => project.space)
+  projects: Project[];
+
   // Relations
   @OneToMany(() => SpaceMember, (member) => member.space)
   members: SpaceMember[];
@@ -143,6 +147,10 @@ export class Space {
   // Virtual properties
   get memberCount(): number {
     return this.members?.length || 0;
+  }
+
+  get projectCount(): number {
+    return this.projects?.length || 0;
   }
 
   get isArchived(): boolean {

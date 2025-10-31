@@ -8,7 +8,7 @@ import {
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
-import { TaskPriority } from 'src/entities/task.entity';
+import { TaskPriority, TaskStatus } from 'src/entities/task.entity';
 
 export class CreateSubtaskDto {
   @IsString()
@@ -38,6 +38,10 @@ export class CreateTaskDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @IsOptional()
+  @IsEnum(TaskStatus)
+  status?: TaskStatus;
 
   @IsUUID()
   projectId: string;

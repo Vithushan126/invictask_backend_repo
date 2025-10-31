@@ -165,7 +165,8 @@ export class List {
 
   get completedTaskCount(): number {
     return (
-      this.tasks?.filter((task) => task.status === TaskStatus.DONE).length || 0
+      this.tasks?.filter((task) => task.status === TaskStatus.COMPLETED)
+        .length || 0
     );
   }
 

@@ -46,20 +46,46 @@ export class WorkspaceController {
     @Query('organizationId', ParseUUIDPipe) organizationId: string,
     @Request() req: any,
   ): Promise<WorkspaceResponseDto> {
-    return this.workspaceService.create(createWorkspaceDto, req.user.id, organizationId);
+    return this.workspaceService.create(
+      createWorkspaceDto,
+      req.user.id,
+      organizationId,
+    );
   }
 
   @Get('my-workspaces')
   async findUserWorkspaces(
     @Query() filter: WorkspaceFilterDto,
     @Request() req: any,
-  ): Promise<{ workspaces: WorkspaceResponseDto[]; total: number; page: number; limit: number }> {
-    const result = await this.workspaceService.findUserWorkspaces(req.user.id, filter);
+  ): Promise<{
+    workspaces: WorkspaceResponseDto[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
+    const result = await this.workspaceService.findUserWorkspaces(
+      req.user.id,
+      filter,
+    );
     return {
       ...result,
       page: filter.page || 1,
       limit: filter.limit || 20,
     };
+  }
+
+  @Get('nested')
+  @UsePipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: false,
+      skipMissingProperties: true,
+    }),
+  )
+  @Roles(UserRole.SUPER_ADMIN, UserRole.ADMIN)
+  @UseGuards(RolesGuard)
+  async getNestedWorkspaces() {
+    return await this.workspaceService.getNestedWorkspaces();
   }
 
   @Get(':id')
@@ -107,7 +133,10 @@ export class WorkspaceController {
     @Body() acceptInvitationDto: AcceptWorkspaceInvitationDto,
     @Request() req: any,
   ): Promise<{ message: string }> {
-    return this.workspaceService.acceptInvitation(acceptInvitationDto.token, req.user.id);
+    return this.workspaceService.acceptInvitation(
+      acceptInvitationDto.token,
+      req.user.id,
+    );
   }
 
   @Get(':id/members')
@@ -126,7 +155,12 @@ export class WorkspaceController {
     @Body() updateMemberRoleDto: UpdateMemberRoleDto,
     @Request() req: any,
   ): Promise<WorkspaceMemberResponseDto> {
-    return this.workspaceService.updateMemberRole(id, memberId, updateMemberRoleDto, req.user.id);
+    return this.workspaceService.updateMemberRole(
+      id,
+      memberId,
+      updateMemberRoleDto,
+      req.user.id,
+    );
   }
 
   @Delete(':id/members/:memberId')
@@ -162,7 +196,11 @@ export class WorkspaceController {
     @Param('invitationId', ParseUUIDPipe) invitationId: string,
     @Request() req: any,
   ): Promise<void> {
-    return this.workspaceService.cancelInvitation(id, invitationId, req.user.id);
+    return this.workspaceService.cancelInvitation(
+      id,
+      invitationId,
+      req.user.id,
+    );
   }
 
   @Post(':id/archive')
@@ -200,7 +238,12 @@ export class WorkspaceController {
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 20,
     @Request() req: any,
-  ): Promise<{ activities: any[]; total: number; page: number; limit: number }> {
+  ): Promise<{
+    activities: any[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
     return this.workspaceService.getActivity(id, req.user.id, { page, limit });
   }
 
@@ -234,11 +277,14 @@ export class WorkspaceController {
 
   // SUPER_ADMIN only endpoints
   @Get()
-  @Roles(UserRole.SUPER_ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.USER)
   @UseGuards(RolesGuard)
-  async findAll(
-    @Query() filter: WorkspaceFilterDto,
-  ): Promise<{ workspaces: WorkspaceResponseDto[]; total: number; page: number; limit: number }> {
+  async findAll(@Query() filter: WorkspaceFilterDto): Promise<{
+    workspaces: WorkspaceResponseDto[];
+    total: number;
+    page: number;
+    limit: number;
+  }> {
     const result = await this.workspaceService.findAll(filter);
     return {
       ...result,

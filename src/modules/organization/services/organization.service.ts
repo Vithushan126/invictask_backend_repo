@@ -1378,7 +1378,7 @@ export class OrganizationService {
       description: workspace.description,
       visibility: workspace.visibility,
       memberCount: workspace.members?.length || 0,
-      projectCount: workspace.projects?.length || 0,
+      // projectCount: workspace.projects?.length || 0,
       isArchived: workspace.isArchived,
       createdAt: workspace.createdAt,
       updatedAt: workspace.updatedAt,

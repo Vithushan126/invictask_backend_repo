@@ -89,7 +89,7 @@ export class WorkspaceResponseDto {
   coverImage?: string | null;
   visibility: WorkspaceVisibility;
   memberCount: number;
-  projectCount: number;
+  projectCount?: number;
   owner: {
     id: string;
     firstName: string;
@@ -151,9 +151,9 @@ export class WorkspaceInvitationResponseDto {
 
 export class WorkspaceStatsDto {
   totalMembers: number;
-  totalProjects: number;
-  totalTasks: number;
-  completedTasks: number;
+  totalProjects?: number;
+  totalTasks?: number;
+  completedTasks?: number;
   overdueTasks: number;
   activeMembers: number;
   recentActivity: any[];

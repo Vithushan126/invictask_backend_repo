@@ -19,6 +19,7 @@ import { Task } from '../../entities/task.entity';
 
 // Import notification module
 import { NotificationModule } from '../notification/notification.module';
+import { Space } from 'src/entities/space.entity';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { NotificationModule } from '../notification/notification.module';
       WorkspaceInvitation,
       Project,
       Task,
+      Space,
     ]),
     NotificationModule,
   ],

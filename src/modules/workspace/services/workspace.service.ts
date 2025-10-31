@@ -38,6 +38,7 @@ import {
   WorkspaceStatsDto,
   WorkspaceFilterDto,
 } from '../dto/workspace.dto';
+import { Space } from 'src/entities/space.entity';
 
 @Injectable()
 export class WorkspaceService {
@@ -61,6 +62,8 @@ export class WorkspaceService {
     @InjectRepository(Task)
     private readonly taskRepository: Repository<Task>,
     private readonly notificationService: NotificationService,
+    @InjectRepository(Space)
+    private readonly spaceRepo: Repository<Space>,
   ) {}
 
   async create(
@@ -440,21 +443,21 @@ export class WorkspaceService {
       where: { workspaceId, isActive: true },
     });
 
-    const totalProjects = await this.projectRepository.count({
-      where: { workspaceId, isActive: true },
-    });
+    // const totalProjects = await this.projectRepository.count({
+    //   where: { workspaceId, isActive: true },
+    // });
 
-    const totalTasks = await this.taskRepository.count({
-      where: { project: { workspaceId }, isActive: true },
-    });
+    // const totalTasks = await this.taskRepository.count({
+    //   where: { project: { workspaceId }, isActive: true },
+    // });
 
-    const completedTasks = await this.taskRepository.count({
-      where: {
-        project: { workspaceId },
-        status: TaskStatus.DONE,
-        isActive: true,
-      },
-    });
+    // const completedTasks = await this.taskRepository.count({
+    //   where: {
+    //     project: { workspaceId },
+    //     status: TaskStatus.COMPLETED,
+    //     isActive: true,
+    //   },
+    // });
 
     const overdueTasks = await this.taskRepository
       .createQueryBuilder('task')
@@ -467,9 +470,9 @@ export class WorkspaceService {
 
     return {
       totalMembers,
-      totalProjects,
-      totalTasks,
-      completedTasks,
+      // totalProjects,
+      // totalTasks,
+      // completedTasks,
       overdueTasks,
       activeMembers: totalMembers, // TODO: Calculate based on recent activity
       recentActivity: [], // TODO: Implement activity tracking
@@ -517,7 +520,7 @@ export class WorkspaceService {
       coverImage: workspace.coverImage,
       visibility: workspace.visibility,
       memberCount: workspace.memberCount,
-      projectCount: workspace.projectCount,
+      // projectCount: workspace.projectCount,
       owner: {
         id: workspace.owner.id,
         firstName: workspace.owner.firstName,
@@ -1006,5 +1009,40 @@ export class WorkspaceService {
       },
       customFields: [],
     };
+  }
+
+  async getNestedWorkspaces() {
+    // Fetch all workspaces
+    const workspaces = await this.workspaceRepository.find();
+
+    // Fetch all spaces and projects
+    const spaces = await this.spaceRepo.find();
+    const projects = await this.projectRepository.find();
+    console.log('ddddddddddddddddddddddddddddddddddd', projects);
+
+    // Build nested structure
+    return workspaces.map((ws) => ({
+      id: ws.id,
+      name: ws.name,
+      slug: ws.slug,
+      // color: ws.color,
+      spaces: spaces
+        .filter((sp) => sp.workspaceId === ws.id)
+        .map((sp) => ({
+          id: sp.id,
+          name: sp.name,
+          slug: sp.slug,
+          color: sp.color,
+          projects: projects
+            .filter((p) => p.spaceId === sp.id)
+            .map((p) => ({
+              id: p.id,
+              name: p.name,
+              // slug: p.slug,
+              //   color: p.color,
+              taskCount: p.taskCount,
+            })),
+        })),
+    }));
   }
 }

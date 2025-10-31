@@ -388,7 +388,7 @@ export class OrganizationWorkspaceDto {
   description?: string;
   visibility: string;
   memberCount: number;
-  projectCount: number;
+  projectCount?: number;
   isArchived: boolean;
   createdAt: Date;
   updatedAt: Date;

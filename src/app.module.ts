@@ -45,6 +45,7 @@ import {
   FolderMilestone,
 } from './entities/folder.entity';
 import { ProjectModule } from './modules/project/project.module';
+import { TaskModule } from './modules/task/task.module';
 
 @Module({
   imports: [
@@ -109,6 +110,7 @@ import { ProjectModule } from './modules/project/project.module';
     FileUploadModule,
     NotificationModule,
     ProjectModule,
+    TaskModule
   ],
   controllers: [AppController],
   providers: [AppService],

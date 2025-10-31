@@ -1,7 +1,17 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { Project, ProjectMember, ProjectRole, ProjectStatus } from '../../../entities/project.entity';
+import {
+  Project,
+  ProjectMember,
+  ProjectRole,
+  ProjectStatus,
+} from '../../../entities/project.entity';
 import { User } from '../../../entities/user.entity';
 import { Workspace, WorkspaceMember } from '../../../entities/workspace.entity';
 import { CreateProjectDto } from '../dto/create-project.dto';
@@ -28,11 +38,14 @@ export class ProjectService {
     private spaceMemberRepository: Repository<SpaceMember>,
   ) {}
 
-  async create(createProjectDto: CreateProjectDto, userId: string): Promise<Project> {
+  async create(
+    createProjectDto: CreateProjectDto,
+    userId: string,
+  ): Promise<Project> {
     // Verify space exists and user has access
     const space = await this.spaceRepository.findOne({
       where: { id: createProjectDto.spaceId },
-      relations: ['workspace']
+      relations: ['workspace'],
     });
 
     if (!space) {
@@ -40,7 +53,7 @@ export class ProjectService {
     }
 
     const spaceMember = await this.spaceMemberRepository.findOne({
-      where: { spaceId: createProjectDto.spaceId, userId }
+      where: { spaceId: createProjectDto.spaceId, userId },
     });
 
     if (!spaceMember) {
@@ -51,7 +64,7 @@ export class ProjectService {
     const project = this.projectRepository.create({
       ...createProjectDto,
       ownerId: userId,
-      workspaceId: space.workspaceId, // Inherit from space
+      spaceId: space.id,
       settings: createProjectDto.settings || this.getDefaultSettings(),
     });
 
@@ -88,7 +101,14 @@ export class ProjectService {
   async findOne(id: string): Promise<Project> {
     const project = await this.projectRepository.findOne({
       where: { id },
-      relations: ['members', 'members.user', 'workspace', 'owner', 'tasks', 'files'],
+      relations: [
+        'members',
+        'members.user',
+        // 'workspace',
+        'owner',
+        'tasks',
+        'files',
+      ],
     });
 
     if (!project) {
@@ -98,16 +118,25 @@ export class ProjectService {
     return project;
   }
 
-  async update(id: string, updateProjectDto: UpdateProjectDto, userId: string): Promise<Project> {
+  async update(
+    id: string,
+    updateProjectDto: UpdateProjectDto,
+    userId: string,
+  ): Promise<Project> {
     const project = await this.findOne(id);
-    
+
     // Check if user has permission to update
     const member = await this.projectMemberRepository.findOne({
-      where: { projectId: id, userId }
+      where: { projectId: id, userId },
     });
 
-    if (!member || (member.role !== ProjectRole.ADMIN && project.ownerId !== userId)) {
-      throw new ForbiddenException('You do not have permission to update this project');
+    if (
+      !member ||
+      (member.role !== ProjectRole.ADMIN && project.ownerId !== userId)
+    ) {
+      throw new ForbiddenException(
+        'You do not have permission to update this project',
+      );
     }
 
     await this.projectRepository.update(id, updateProjectDto);
@@ -116,23 +145,32 @@ export class ProjectService {
 
   async remove(id: string, userId: string): Promise<void> {
     const project = await this.findOne(id);
-    
+
     // Only owner or admin can delete
     const member = await this.projectMemberRepository.findOne({
-      where: { projectId: id, userId }
+      where: { projectId: id, userId },
     });
 
-    if (!member || (member.role !== ProjectRole.ADMIN && project.ownerId !== userId)) {
-      throw new ForbiddenException('You do not have permission to delete this project');
+    if (
+      !member ||
+      (member.role !== ProjectRole.ADMIN && project.ownerId !== userId)
+    ) {
+      throw new ForbiddenException(
+        'You do not have permission to delete this project',
+      );
     }
 
     await this.projectRepository.softDelete(id);
   }
 
-  async addMember(projectId: string, addMemberDto: AddProjectMemberDto, addedBy: string): Promise<ProjectMember> {
+  async addMember(
+    projectId: string,
+    addMemberDto: AddProjectMemberDto,
+    addedBy: string,
+  ): Promise<ProjectMember> {
     // Check if user has permission to add members
     const adminMember = await this.projectMemberRepository.findOne({
-      where: { projectId, userId: addedBy }
+      where: { projectId, userId: addedBy },
     });
 
     if (!adminMember || adminMember.role !== ProjectRole.ADMIN) {
@@ -141,7 +179,7 @@ export class ProjectService {
 
     // Check if user exists
     const user = await this.userRepository.findOne({
-      where: { id: addMemberDto.userId }
+      where: { id: addMemberDto.userId },
     });
 
     if (!user) {
@@ -150,7 +188,7 @@ export class ProjectService {
 
     // Check if already a member
     const existingMember = await this.projectMemberRepository.findOne({
-      where: { projectId, userId: addMemberDto.userId }
+      where: { projectId, userId: addMemberDto.userId },
     });
 
     if (existingMember) {
@@ -169,9 +207,13 @@ export class ProjectService {
     return this.projectMemberRepository.save(member);
   }
 
-  async removeMember(projectId: string, userId: string, removedBy: string): Promise<void> {
+  async removeMember(
+    projectId: string,
+    userId: string,
+    removedBy: string,
+  ): Promise<void> {
     const adminMember = await this.projectMemberRepository.findOne({
-      where: { projectId, userId: removedBy }
+      where: { projectId, userId: removedBy },
     });
 
     if (!adminMember || adminMember.role !== ProjectRole.ADMIN) {
@@ -190,13 +232,13 @@ export class ProjectService {
 
   async getProjectStats(projectId: string): Promise<any> {
     const project = await this.findOne(projectId);
-    
+
     const memberCount = await this.projectMemberRepository.count({
-      where: { projectId }
+      where: { projectId },
     });
 
     // TODO: Add task counts when Task module is implemented
-    
+
     return {
       id: project.id,
       name: project.name,
@@ -228,7 +270,13 @@ export class ProjectService {
       },
       taskStatuses: [
         { id: '1', name: 'To Do', color: '#f56565', type: 'open', order: 1 },
-        { id: '2', name: 'In Progress', color: '#ed8936', type: 'in_progress', order: 2 },
+        {
+          id: '2',
+          name: 'In Progress',
+          color: '#ed8936',
+          type: 'in_progress',
+          order: 2,
+        },
         { id: '3', name: 'Done', color: '#48bb78', type: 'closed', order: 3 },
       ],
       taskPriorities: [

@@ -119,19 +119,12 @@ export class Workspace {
   @OneToMany(() => WorkspaceMember, (member) => member.workspace)
   members: WorkspaceMember[];
 
-  @OneToMany(() => Project, (project) => project.workspace)
-  projects: Project[];
-
   @OneToMany(() => Space, (space) => space.workspace)
   spaces: Space[];
 
   // Virtual properties
   get memberCount(): number {
     return this.members?.length || 0;
-  }
-
-  get projectCount(): number {
-    return this.projects?.length || 0;
   }
 
   get isArchived(): boolean {

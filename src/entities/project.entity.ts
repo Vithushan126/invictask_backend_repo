@@ -10,7 +10,7 @@ import {
   Index,
 } from 'typeorm';
 import { User } from './user.entity';
-import { Workspace } from './workspace.entity';
+import { Space } from './space.entity';
 
 export enum ProjectStatus {
   PLANNING = 'planning',
@@ -48,11 +48,11 @@ export class Project {
   coverImage: string;
 
   @Column('uuid')
-  workspaceId: string;
+  spaceId: string;
 
-  @ManyToOne(() => Workspace, workspace => workspace.projects, { eager: true })
-  @JoinColumn({ name: 'workspaceId' })
-  workspace: Workspace;
+  @ManyToOne(() => Space, (space) => space.projects, { eager: true })
+  @JoinColumn({ name: 'spaceId' })
+  space: Space;
 
   @Column('uuid')
   ownerId: string;
@@ -122,7 +122,14 @@ export class Project {
     customFields: Array<{
       id: string;
       name: string;
-      type: 'text' | 'number' | 'date' | 'dropdown' | 'checkbox' | 'user' | 'label';
+      type:
+        | 'text'
+        | 'number'
+        | 'date'
+        | 'dropdown'
+        | 'checkbox'
+        | 'user'
+        | 'label';
       required: boolean;
       options?: string[];
       defaultValue?: any;
@@ -156,13 +163,13 @@ export class Project {
   updatedAt: Date;
 
   // Relations
-  @OneToMany(() => ProjectMember, member => member.project)
+  @OneToMany(() => ProjectMember, (member) => member.project)
   members: ProjectMember[];
 
-  @OneToMany(() => Task, task => task.project)
+  @OneToMany(() => Task, (task) => task.project)
   tasks: Task[];
 
-  @OneToMany(() => ProjectFile, file => file.project)
+  @OneToMany(() => ProjectFile, (file) => file.project)
   files: ProjectFile[];
 
   // Virtual properties
@@ -204,7 +211,9 @@ export class ProjectMember {
   @Column('uuid')
   projectId: string;
 
-  @ManyToOne(() => Project, project => project.members, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Project, (project) => project.members, {
+    onDelete: 'CASCADE',
+  })
   @JoinColumn({ name: 'projectId' })
   project: Project;
 
@@ -257,7 +266,7 @@ export class ProjectFile {
   @Column('uuid')
   projectId: string;
 
-  @ManyToOne(() => Project, project => project.files, { onDelete: 'CASCADE' })
+  @ManyToOne(() => Project, (project) => project.files, { onDelete: 'CASCADE' })
   @JoinColumn({ name: 'projectId' })
   project: Project;
 
