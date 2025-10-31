@@ -82,17 +82,26 @@ export class ProjectService {
     return this.findOne(savedProject.id);
   }
 
-  async findAll(userId: string, workspaceId?: string): Promise<Project[]> {
+  async findAll(
+    userId: string,
+    // workspaceId?: string,
+    spaceId?: string,
+  ): Promise<Project[]> {
     const query = this.projectRepository
       .createQueryBuilder('project')
       .leftJoinAndSelect('project.members', 'member')
       .leftJoinAndSelect('member.user', 'user')
-      .leftJoinAndSelect('project.workspace', 'workspace')
+      .leftJoinAndSelect('project.space', 'space')
+      // .leftJoinAndSelect('project.workspace', 'workspace')
       .leftJoinAndSelect('project.owner', 'owner')
       .where('member.userId = :userId', { userId });
 
-    if (workspaceId) {
-      query.andWhere('project.workspaceId = :workspaceId', { workspaceId });
+    // if (workspaceId) {
+    //   query.andWhere('project.workspaceId = :workspaceId', { workspaceId });
+    // }
+
+    if (spaceId) {
+      query.andWhere('project.spaceId = :spaceId', { spaceId });
     }
 
     return query.getMany();

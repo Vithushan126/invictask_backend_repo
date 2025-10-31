@@ -27,8 +27,16 @@ export class ProjectController {
   }
 
   @Get()
-  findAll(@Request() req, @Query('workspaceId') workspaceId?: string) {
-    return this.projectService.findAll(req.user.id, workspaceId);
+  findAll(
+    @Request() req,
+    // @Query('workspaceId') workspaceId?: string,
+    @Query('spaceId') spaceId?: string,
+  ) {
+    return this.projectService.findAll(
+      req.user.id,
+      // workspaceId,
+      spaceId,
+    );
   }
 
   @Get(':id')
