@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, Repository, TreeRepository } from 'typeorm';
+import { DataSource, IsNull, Repository, TreeRepository } from 'typeorm';
 import { Task } from 'src/entities/task.entity';
 import { CreateTaskDto } from '../dto/create-task.dto';
 import { UpdateTaskDto } from '../dto/update-task.dto';
@@ -39,12 +39,57 @@ export class TaskService {
   }
 
   // Get all top-level tasks as tree
-  async getTasks() {
-    const tasks = await this.taskTreeRepo.findTrees({
-      relations: ['project', 'assignee'],
-    });
+  // async getTasks() {
+  //   const tasks = await this.taskTreeRepo.findTrees({
+  //     relations: ['project', 'assignee'],
+  //   });
 
-    return tasks;
+  //   return tasks;
+  // }
+  // async getTasks(projectId?: string) {
+  //   if (projectId) {
+  //     // Return tasks belonging to the given project
+  //     return this.taskTreeRepo.findTrees({
+  //       where: { project: { id: projectId } },
+  //       relations: ['project', 'assignee', 'parentTask', ],
+  //       order: { createdAt: 'DESC' },
+  //     });
+  //   }
+
+  //   // Otherwise, return all tasks as trees
+  //   return this.taskTreeRepo.findTrees({
+  //     relations: ['project', 'assignee', 'parentTask'],
+  //   });
+  // }
+
+  async getTasks(projectId?: string) {
+    if (projectId) {
+      // Step 1: Get top-level tasks for this project
+      const rootTasks = await this.taskRepo.find({
+        where: {
+          project: { id: projectId },
+          parentTask: IsNull(),
+        },
+        relations: ['project', 'assignee', 'parentTask'],
+        order: { createdAt: 'DESC' },
+      });
+
+      // Step 2: Build full trees for each root task
+      const taskTrees = await Promise.all(
+        rootTasks.map((task) =>
+          this.taskTreeRepo.findDescendantsTree(task, {
+            relations: ['project', 'assignee', 'parentTask'],
+          }),
+        ),
+      );
+
+      return taskTrees;
+    }
+
+    // Step 3: Return all task trees when no projectId is given
+    return this.taskTreeRepo.findTrees({
+      relations: ['project', 'assignee', 'parentTask'],
+    });
   }
 
   // Get a single task with its subtree

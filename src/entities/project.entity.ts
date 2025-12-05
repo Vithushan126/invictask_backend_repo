@@ -8,6 +8,7 @@ import {
   OneToMany,
   JoinColumn,
   Index,
+  DeleteDateColumn,
 } from 'typeorm';
 import { User } from './user.entity';
 import { Space } from './space.entity';
@@ -155,6 +156,9 @@ export class Project {
 
   @Column({ nullable: true })
   completedAt: Date;
+
+  @DeleteDateColumn()
+  deletedAt: Date;
 
   @CreateDateColumn()
   createdAt: Date;

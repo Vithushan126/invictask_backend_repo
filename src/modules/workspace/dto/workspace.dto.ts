@@ -89,6 +89,7 @@ export class WorkspaceResponseDto {
   coverImage?: string | null;
   visibility: WorkspaceVisibility;
   memberCount: number;
+  members?: WorkspaceMemberResponseDto[];
   projectCount?: number;
   owner: {
     id: string;
@@ -111,11 +112,11 @@ export class WorkspaceResponseDto {
 export class WorkspaceMemberResponseDto {
   id: string;
   role: WorkspaceRole;
-  permissions: string[];
-  joinedAt: Date;
+  permissions?: string[];
+  joinedAt?: Date;
   lastActiveAt?: Date;
-  isActive: boolean;
-  user: {
+  isActive?: boolean;
+  user?: {
     id: string;
     firstName: string;
     lastName: string;

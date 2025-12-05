@@ -82,23 +82,51 @@ export class ProjectService {
     return this.findOne(savedProject.id);
   }
 
-  async findAll(
-    userId: string,
-    // workspaceId?: string,
-    spaceId?: string,
-  ): Promise<Project[]> {
+  // async findAll(
+  //   userId: string,
+  //   // workspaceId?: string,
+  //   spaceId?: string,
+  // ): Promise<Project[]> {
+  //   const query = this.projectRepository
+  //     .createQueryBuilder('project')
+  //     .leftJoinAndSelect('project.members', 'member')
+  //     .leftJoinAndSelect('member.user', 'user')
+  //     .leftJoinAndSelect('project.space', 'space')
+  //     // .leftJoinAndSelect('project.workspace', 'workspace')
+  //     .leftJoinAndSelect('project.owner', 'owner')
+  //     .where('member.userId = :userId', { userId })
+  //     .andWhere('project.isActive = true');
+
+  //   // if (workspaceId) {
+  //   //   query.andWhere('project.workspaceId = :workspaceId', { workspaceId });
+  //   // }
+
+  //   if (spaceId) {
+  //     query.andWhere('project.spaceId = :spaceId', { spaceId });
+  //   }
+
+  //   return query.getMany();
+  // }
+
+  async findAll(userId: string, spaceId?: string): Promise<Project[]> {
     const query = this.projectRepository
       .createQueryBuilder('project')
       .leftJoinAndSelect('project.members', 'member')
       .leftJoinAndSelect('member.user', 'user')
       .leftJoinAndSelect('project.space', 'space')
-      // .leftJoinAndSelect('project.workspace', 'workspace')
       .leftJoinAndSelect('project.owner', 'owner')
-      .where('member.userId = :userId', { userId });
+      .where((qb) => {
+        const sub = qb
+          .subQuery()
+          .select('pm.projectId')
+          .from(ProjectMember, 'pm')
+          .where('pm.userId = :userId')
+          .getQuery();
 
-    // if (workspaceId) {
-    //   query.andWhere('project.workspaceId = :workspaceId', { workspaceId });
-    // }
+        return 'project.id IN ' + sub;
+      })
+      .andWhere('project.isActive = true')
+      .setParameter('userId', userId);
 
     if (spaceId) {
       query.andWhere('project.spaceId = :spaceId', { spaceId });
@@ -169,7 +197,12 @@ export class ProjectService {
       );
     }
 
-    await this.projectRepository.softDelete(id);
+    // await this.projectRepository.softDelete(id);
+    await this.projectRepository.update(id, {
+      isActive: false,
+      archivedAt: new Date(),
+      archivedBy: userId,
+    });
   }
 
   async addMember(

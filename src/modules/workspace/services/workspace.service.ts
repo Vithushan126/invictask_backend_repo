@@ -5,6 +5,7 @@ import {
   ConflictException,
   BadRequestException,
   Logger,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Not } from 'typeorm';
@@ -138,6 +139,81 @@ export class WorkspaceService {
     return this.mapToResponseDto(workspaceWithRelations);
   }
 
+  // async findUserWorkspaces(
+  //   userId: string,
+  //   filter: WorkspaceFilterDto,
+  // ): Promise<{ workspaces: WorkspaceResponseDto[]; total: number }> {
+  //   const {
+  //     search,
+  //     visibility,
+  //     organizationId,
+  //     sortBy,
+  //     sortOrder,
+  //     page = 1,
+  //     limit = 20,
+  //   } = filter;
+
+  //   const queryBuilder = this.workspaceRepository
+  //     .createQueryBuilder('workspace')
+  //     .leftJoin('workspace.members', 'member')
+  //     .leftJoin('workspace.organization', 'organization')
+  //     .leftJoin('workspace.owner', 'owner')
+  //     .addSelect('COUNT(member.id)', 'memberCount')
+  //     .select([
+  //       'workspace',
+  //       'organization.id',
+  //       'organization.name',
+  //       'owner.id',
+  //       'owner.firstName',
+  //       'owner.lastName',
+  //       'owner.email',
+  //       'owner.avatar',
+  //     ])
+  //     .where('member.userId = :userId AND member.isActive = true', { userId });
+
+  //   // Apply filters
+  //   if (search) {
+  //     queryBuilder.andWhere(
+  //       '(workspace.name ILIKE :search OR workspace.description ILIKE :search)',
+  //       { search: `%${search}%` },
+  //     );
+  //   }
+
+  //   if (visibility) {
+  //     queryBuilder.andWhere('workspace.visibility = :visibility', {
+  //       visibility,
+  //     });
+  //   }
+
+  //   if (organizationId) {
+  //     queryBuilder.andWhere('workspace.organizationId = :organizationId', {
+  //       organizationId,
+  //     });
+  //   }
+
+  //   queryBuilder.andWhere('workspace.isActive = true');
+
+  //   // Apply sorting
+  //   const sortField = sortBy || 'createdAt';
+  //   const sortDirection = sortOrder || 'DESC';
+  //   queryBuilder.orderBy(`workspace.${sortField}`, sortDirection);
+
+  //   // Apply pagination - convert to numbers
+  //   const pageNum = Number(page);
+  //   const limitNum = Number(limit);
+  //   const skip = (pageNum - 1) * limitNum;
+  //   queryBuilder.skip(skip).take(limitNum);
+
+  //   const [workspaces, total] = await queryBuilder.getManyAndCount();
+
+  //   return {
+  //     workspaces: workspaces.map((workspace) =>
+  //       this.mapToResponseDto(workspace),
+  //     ),
+  //     total,
+  //   };
+  // }
+
   async findUserWorkspaces(
     userId: string,
     filter: WorkspaceFilterDto,
@@ -152,24 +228,33 @@ export class WorkspaceService {
       limit = 20,
     } = filter;
 
+    // Step 1: get workspace IDs where user is a member
+    const workspaceIds = await this.workspaceMemberRepository
+      .createQueryBuilder('wm')
+      .select('wm.workspaceId')
+      .where('wm.userId = :userId AND wm.isActive = true', { userId })
+      .getRawMany();
+
+    const ids = workspaceIds.map((w) => w.wm_workspaceId);
+
+    if (!ids.length) {
+      return { workspaces: [], total: 0 };
+    }
+
+    // Step 2: get workspaces with all active members
     const queryBuilder = this.workspaceRepository
       .createQueryBuilder('workspace')
-      .leftJoin('workspace.members', 'member')
-      .leftJoin('workspace.organization', 'organization')
-      .leftJoin('workspace.owner', 'owner')
-      .select([
-        'workspace',
-        'organization.id',
-        'organization.name',
-        'owner.id',
-        'owner.firstName',
-        'owner.lastName',
-        'owner.email',
-        'owner.avatar',
-      ])
-      .where('member.userId = :userId AND member.isActive = true', { userId });
+      .leftJoinAndSelect(
+        'workspace.members',
+        'member',
+        'member.isActive = true', // all active members
+      )
+      .leftJoinAndSelect('member.user', 'user') // join user info
+      .leftJoinAndSelect('workspace.organization', 'organization')
+      .leftJoinAndSelect('workspace.owner', 'owner')
+      .where('workspace.id IN (:...ids)', { ids });
 
-    // Apply filters
+    // Filters
     if (search) {
       queryBuilder.andWhere(
         '(workspace.name ILIKE :search OR workspace.description ILIKE :search)',
@@ -191,12 +276,12 @@ export class WorkspaceService {
 
     queryBuilder.andWhere('workspace.isActive = true');
 
-    // Apply sorting
+    // Sorting
     const sortField = sortBy || 'createdAt';
     const sortDirection = sortOrder || 'DESC';
     queryBuilder.orderBy(`workspace.${sortField}`, sortDirection);
 
-    // Apply pagination - convert to numbers
+    // Pagination
     const pageNum = Number(page);
     const limitNum = Number(limit);
     const skip = (pageNum - 1) * limitNum;
@@ -281,6 +366,8 @@ export class WorkspaceService {
     inviteMemberDto: InviteWorkspaceMemberDto,
     inviterId: string,
   ): Promise<WorkspaceInvitationResponseDto> {
+    console.log('inviterId', inviterId);
+
     const workspace = await this.workspaceRepository.findOne({
       where: { id: workspaceId },
       relations: ['organization'],
@@ -328,8 +415,15 @@ export class WorkspaceService {
       expiresAt,
     });
 
+    console.log('invitationssssssssssssssssssssssssssss', invitation);
+
     const savedInvitation =
       await this.workspaceInvitationRepository.save(invitation);
+
+    const fullInvitation = await this.workspaceInvitationRepository.findOne({
+      where: { id: savedInvitation.id },
+      relations: ['workspace', 'inviter'], // 👈 must match entity relation names
+    });
 
     // Send invitation email
     await this.notificationService.sendNotification({
@@ -348,6 +442,7 @@ export class WorkspaceService {
         inviteMessage: inviteMemberDto.message,
         inviteUrl: `${process.env.FRONTEND_URL}/accept-workspace-invitation?token=${token}`,
         expiresAt,
+        inviterName: `${workspace.owner.firstName} ${workspace.owner.lastName}`,
       },
     });
 
@@ -355,7 +450,14 @@ export class WorkspaceService {
       `Workspace invitation sent: ${inviteMemberDto.email} to ${workspace.name}`,
     );
 
-    return this.mapInvitationToResponseDto(savedInvitation);
+    if (!fullInvitation) {
+      throw new InternalServerErrorException(
+        'Invitation could not be loaded after save',
+      );
+    }
+
+    // return this.mapInvitationToResponseDto(savedInvitation);
+    return this.mapInvitationToResponseDto(fullInvitation);
   }
 
   async acceptInvitation(
@@ -510,6 +612,36 @@ export class WorkspaceService {
     }
   }
 
+  // private mapToResponseDto(workspace: Workspace): WorkspaceResponseDto {
+  //   return {
+  //     id: workspace.id,
+  //     name: workspace.name,
+  //     slug: workspace.slug,
+  //     description: workspace.description,
+  //     avatar: workspace.avatar,
+  //     coverImage: workspace.coverImage,
+  //     visibility: workspace.visibility,
+  //     memberCount: workspace.memberCount,
+  //     // projectCount: workspace.projectCount,
+  //     owner: {
+  //       id: workspace.owner.id,
+  //       firstName: workspace.owner.firstName,
+  //       lastName: workspace.owner.lastName,
+  //       email: workspace.owner.email,
+  //       avatar: workspace.owner.avatar,
+  //     },
+  //     organization: {
+  //       id: workspace.organization.id,
+  //       name: workspace.organization.name,
+  //     },
+  //     settings: workspace.settings,
+  //     isActive: workspace.isActive,
+  //     isArchived: workspace.isArchived,
+  //     createdAt: workspace.createdAt,
+  //     updatedAt: workspace.updatedAt,
+  //   };
+  // }
+
   private mapToResponseDto(workspace: Workspace): WorkspaceResponseDto {
     return {
       id: workspace.id,
@@ -519,8 +651,17 @@ export class WorkspaceService {
       avatar: workspace.avatar,
       coverImage: workspace.coverImage,
       visibility: workspace.visibility,
-      memberCount: workspace.memberCount,
-      // projectCount: workspace.projectCount,
+      memberCount: workspace.members?.length || 0,
+      members: workspace.members?.map((m) => ({
+        id: m.id,
+        userId: m.userId,
+        firstName: m.user.firstName,
+        lastName: m.user.lastName,
+        email: m.user.email,
+        avatar: m.user.avatar,
+        role: m.role,
+        joinedAt: m.joinedAt,
+      })),
       owner: {
         id: workspace.owner.id,
         firstName: workspace.owner.firstName,
@@ -611,9 +752,14 @@ export class WorkspaceService {
     await this.checkPermissions(id, userId, [WorkspaceRole.ADMIN]);
 
     // Soft delete
+    // await this.workspaceRepository.update(id, {
+    //   isActive: false,
+    //   isArchived: true,
+    // });
     await this.workspaceRepository.update(id, {
       isActive: false,
-      isArchived: true,
+      archivedAt: new Date(),
+      archivedBy: userId,
     });
 
     this.logger.log(`Workspace deleted: ${workspace.name} by user ${userId}`);
@@ -690,6 +836,7 @@ export class WorkspaceService {
       relations: ['inviter', 'workspace'],
       order: { createdAt: 'DESC' },
     });
+    console.log('invitations', invitations);
 
     return invitations.map((invitation) =>
       this.mapInvitationToResponseDto(invitation),
@@ -1018,7 +1165,6 @@ export class WorkspaceService {
     // Fetch all spaces and projects
     const spaces = await this.spaceRepo.find();
     const projects = await this.projectRepository.find();
-    console.log('ddddddddddddddddddddddddddddddddddd', projects);
 
     // Build nested structure
     return workspaces.map((ws) => ({
