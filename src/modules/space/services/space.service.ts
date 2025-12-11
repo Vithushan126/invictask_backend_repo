@@ -137,11 +137,13 @@ export class SpaceService {
 
     const queryBuilder = this.spaceRepository
       .createQueryBuilder('space')
+      .innerJoin('space.members', 'userMember', 'userMember.userId = :userId', {
+        userId,
+      })
       .leftJoinAndSelect('space.workspace', 'workspace')
       .leftJoinAndSelect('space.owner', 'owner')
       .leftJoinAndSelect('space.members', 'members')
-      .leftJoinAndSelect('members.user', 'memberUser')
-      .where('members.userId = :userId', { userId });
+      .leftJoinAndSelect('members.user', 'memberUser');
 
     // Apply filters
     if (search) {
@@ -490,6 +492,20 @@ export class SpaceService {
         email: space.owner.email,
         avatar: space.owner.avatar ?? undefined,
       },
+      members:
+        space.members?.map((member) => ({
+          id: member.id,
+          role: member.role,
+          permissions: member.permissions,
+          joinedAt: member.joinedAt,
+          user: {
+            id: member.user.id,
+            firstName: member.user.firstName,
+            lastName: member.user.lastName,
+            email: member.user.email,
+            avatar: member.user.avatar,
+          },
+        })) || [],
       memberCount,
       folderCount: 0, // TODO: Implement when Folder entity is ready
       taskCount: 0, // TODO: Implement when Task counting is ready
@@ -628,5 +644,3 @@ export class SpaceService {
     };
   }
 }
-
-

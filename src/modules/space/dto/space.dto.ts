@@ -235,6 +235,21 @@ export class SpaceResponseDto {
     email: string;
     avatar?: string;
   };
+
+  members: {
+    id: string;
+    role: string;
+    permissions: string[] | null;
+    joinedAt: Date;
+    user: {
+      id: string;
+      firstName: string;
+      lastName: string;
+      email: string;
+      avatar: string | null;
+    };
+  }[];
+
   memberCount: number;
   folderCount: number;
   taskCount: number;
